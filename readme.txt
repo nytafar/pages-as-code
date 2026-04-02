@@ -4,7 +4,7 @@ Tags: pages, cli, gutenberg, blocks, developer-tools
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 1.0.0
+Stable tag: 1.1.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -46,6 +46,36 @@ Pages as Code requires WP-CLI 2.0 or later.
     <p>Welcome to our about page.</p>
     <!-- /wp:paragraph -->
 
+== Usage ==
+
+**Publishing workflow**
+
+The `wp pac push` command requires the `edit_pages` capability. In most hosting environments, WP-CLI runs without a logged-in user context, so you need to pass `--user=<admin_id>` to run as an admin user.
+
+To find admin users on your site:
+
+    wp user list --role=administrator --fields=ID,user_login
+
+On GridPane hosting, WP-CLI runs through the `gp wp` wrapper:
+
+    gp wp staging.myrvann.no pac push about.html --user=1
+
+**Template validation**
+
+The `template` front matter field must reference a template slug that exists in the active theme. If the template does not exist, WordPress will reject the post. Omit the field entirely to use the default page template.
+
+**Parent pages**
+
+If a page has a `parent` field, the parent page must already exist in WordPress before you push the child page. Push parent pages first.
+
+**Re-pushing unchanged files**
+
+The plugin computes a SHA-256 hash of the file contents and stores it as post meta. On subsequent pushes, if the hash matches, the update is skipped. This avoids unnecessary database writes and revision creation.
+
+**AI agent support**
+
+The plugin ships a `CLAUDE.md` instructions file and a `pac-page` skill reference for AI coding agents. These are copied to the pages directory on activation and provide block editor markup guidance, front matter reference, and CLI usage documentation.
+
 == Frequently Asked Questions ==
 
 = What file format does Pages as Code use? =
@@ -77,6 +107,14 @@ Yes. Pages as Code provides a WP-CLI command (`wp pac push`) and requires WP-CLI
 No screenshots. Pages as Code is a CLI-only tool with no admin interface.
 
 == Changelog ==
+
+= 1.1.0 =
+* Added CLAUDE.md agent instructions file, copied to pages directory on activation
+* Added `pac-page` skill reference with block editor markup guide, front matter reference, and CLI usage
+* Added Usage documentation in readme with publishing workflow, GridPane specifics, and troubleshooting
+* Added block markup linter to development roadmap
+* Plugin activation now copies CLAUDE.md to wp-content/pages/ for AI agent discovery
+* Version bump to 1.1.0
 
 = 1.0.0 =
 * Initial release

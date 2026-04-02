@@ -205,7 +205,7 @@ pages-as-code/
 | `wp pac pull`     | Two-way sync adds conflict resolution complexity.           |
 | `wp pac sync`     | Batch push with directory scanning. Needs hash-based diffing at scale. |
 | `wp pac status`   | Alignment reporting (file vs DB). Useful but not essential for push-only MVP. |
-| Block markup linter | Validates Gutenberg syntax pre-push. Important but separate concern. |
+| Block markup linter | Validates Gutenberg syntax pre-push. On roadmap for v1.2 — will validate block comment pairing, JSON attribute syntax, and HTML fragment structure before push. |
 | Admin UI          | No settings needed in v1. CLI-only is correct for agent workflows. |
 | Multi-post-type   | Posts, CPTs. Adds scope without adding insight.             |
 | Git integration   | Commit-on-push. Better handled by the agent workflow externally. |
