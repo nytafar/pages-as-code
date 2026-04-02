@@ -9,9 +9,10 @@ WordPress plugin that provides file-backed Gutenberg pages. `.html` files with Y
 ```
 pages-as-code.php           Bootstrap, activation hook, WP-CLI registration
 includes/
-  class-pac-file.php         File parsing: front matter splitting, YAML parser, slug resolution, path validation
-  class-pac-pusher.php       Create/update pages, hash comparison, meta writes
+  class-pac-file.php         File parsing: front matter splitting, YAML parser, slug resolution, asset resolution
+  class-pac-pusher.php       Create/update pages, hash comparison, meta writes (incl. asset meta)
   class-pac-cli.php          WP-CLI command: argument handling, output formatting
+  class-pac-assets.php       Frontend + editor CSS/JS enqueue for managed pages
 .claude/skills/pages-as-code/   Skill shipped to users (copied to pages dir on activation)
 assets/pages-CLAUDE.md       Agent instructions shipped to users (copied to pages dir on activation)
 tools/generate-readme.php    Generates readme.txt from README.md + readme.meta.json

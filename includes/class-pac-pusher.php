@@ -71,6 +71,8 @@ class PAC_Pusher {
 			'slug'   => $file->slug,
 			'title'  => $file->title,
 			'file'   => $file->relative_path,
+			'css'    => $file->css_path,
+			'js'     => $file->js_path,
 		);
 	}
 
@@ -92,6 +94,8 @@ class PAC_Pusher {
 				'slug'   => $file->slug,
 				'title'  => $file->title,
 				'file'   => $file->relative_path,
+				'css'    => $file->css_path,
+				'js'     => $file->js_path,
 			);
 		}
 
@@ -121,6 +125,8 @@ class PAC_Pusher {
 			'slug'   => $file->slug,
 			'title'  => $file->title,
 			'file'   => $file->relative_path,
+			'css'    => $file->css_path,
+			'js'     => $file->js_path,
 		);
 	}
 
@@ -136,9 +142,32 @@ class PAC_Pusher {
 		update_post_meta( $post_id, '_pac_hash', $file->hash );
 		update_post_meta( $post_id, '_pac_last_push_gmt', gmdate( 'c' ) );
 
+		// Asset meta: store path or clear if absent.
+		self::write_asset_meta( $post_id, '_pac_css', '_pac_css_hash', $file->css_path, $file->css_hash );
+		self::write_asset_meta( $post_id, '_pac_js', '_pac_js_hash', $file->js_path, $file->js_hash );
+
 		// Write user-defined meta from front matter.
 		foreach ( $file->meta as $key => $value ) {
 			update_post_meta( $post_id, sanitize_key( $key ), sanitize_text_field( $value ) );
+		}
+	}
+
+	/**
+	 * Write or clear an asset path and hash in post meta.
+	 *
+	 * @param int         $post_id  Post ID.
+	 * @param string      $path_key Meta key for the path.
+	 * @param string      $hash_key Meta key for the hash.
+	 * @param string|null $path     Resolved asset path, or null.
+	 * @param string|null $hash     Asset hash, or null.
+	 */
+	private static function write_asset_meta( $post_id, $path_key, $hash_key, $path, $hash ) {
+		if ( null !== $path ) {
+			update_post_meta( $post_id, $path_key, $path );
+			update_post_meta( $post_id, $hash_key, $hash );
+		} else {
+			delete_post_meta( $post_id, $path_key );
+			delete_post_meta( $post_id, $hash_key );
 		}
 	}
 

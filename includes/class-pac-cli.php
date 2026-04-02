@@ -109,6 +109,14 @@ class PAC_CLI {
 				);
 				break;
 		}
+
+		// Report resolved assets.
+		if ( ! empty( $result['css'] ) ) {
+			WP_CLI::log( sprintf( '  CSS: %s', $result['css'] ) );
+		}
+		if ( ! empty( $result['js'] ) ) {
+			WP_CLI::log( sprintf( '  JS:  %s', $result['js'] ) );
+		}
 	}
 
 	/**

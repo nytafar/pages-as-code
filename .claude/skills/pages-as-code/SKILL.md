@@ -18,6 +18,8 @@ Key principles:
 - Push parents before children
 - Re-pushing unchanged files is a no-op (SHA-256 hash check)
 - `--user=<admin_id>` is required in most hosting environments
+- Optional sibling `.css` and `.js` files are auto-resolved during push
+- CSS loads on frontend + block editor; JS loads on frontend only
 
 ## Route by intent
 
@@ -39,13 +41,56 @@ For error diagnosis and hosting-specific commands, read [references/publish/trou
 
 Read shared standards first, then generate workflow, then publish workflow in sequence.
 
+## CSS and JS assets
+
+Pages support optional sibling CSS and JS files that are auto-resolved during push.
+
+### Convention
+
+```
+wp-content/pages/
+  about.html          # required: Gutenberg block markup
+  about.css           # optional: page-specific styles
+  about.js            # optional: page-specific scripts (only when interaction needed)
+```
+
+### Resolution order (CSS example)
+
+1. Front matter `css:` path (relative to `wp-content/`)
+2. Sibling: `about.css` in the same directory as `about.html`
+3. Shared: `pages/css/about.css`
+
+Same for JS with `js:` front matter field.
+
+### Style philosophy
+
+- **Start from the theme.** Analyze the active theme's typography, spacing, colors, and block defaults before writing CSS.
+- **Additive, not replacement.** Don't reset global styles. Add page-specific treatments.
+- **Page-scoped selectors.** Use class names on your page sections, not global element selectors.
+- **Block-editor friendly.** CSS that styles inside-block content works in both frontend and editor.
+- **No JS by default.** Only create JS when the page requires client-side interaction that blocks/theme don't provide.
+
+### Editor behavior
+
+- CSS loads in the block editor for styling parity with the frontend
+- JS is **frontend-only** — editor scripts often break in the editor iframe
+- The editor will reflect your page-specific CSS automatically
+
+### Future: Git workflow
+
+When working with page triplets (`about.html` + `about.css` + `about.js`):
+- Commit all related files together
+- The push command resolves assets from disk, so all files must exist before push
+- Treat the `.html` as the primary file; `.css` and `.js` are supporting assets
+
 ## Quick reference
 
 ```bash
-# Create file
+# Create files
 wp-content/pages/about.html
+wp-content/pages/about.css    # optional
 
-# Push
+# Push (resolves assets automatically)
 wp pac push about.html --user=1
 
 # Verify

@@ -96,6 +96,8 @@ meta:
 | `status` | no | `draft` | `draft`, `publish`, `pending`, `private`, `future` |
 | `template` | no | default | Page template slug. Must exist in the active theme. |
 | `parent` | no | -- | Slug of parent page. Parent must exist before push. |
+| `css` | no | auto-resolved | CSS asset path relative to `wp-content/`. Overrides sibling resolution. |
+| `js` | no | auto-resolved | JS asset path relative to `wp-content/`. Overrides sibling resolution. |
 | `meta` | no | -- | Key-value map written as post meta. |
 
 ### File location
@@ -112,17 +114,52 @@ wp-content/
 
 Subdirectories are organizational only. They have no effect on WordPress page hierarchy, slugs, or URLs.
 
+### Sibling CSS/JS assets
+
+Each page file can have optional matching CSS and JS files that are automatically resolved during push:
+
+```
+wp-content/
+  pages/
+    about.html            # page content (required)
+    about.css             # page-specific styles (optional)
+    about.js              # page-specific scripts (optional, only when needed)
+```
+
+**Resolution order** (CSS example, same for JS):
+
+1. Front matter `css:` path (relative to `wp-content/`)
+2. Sibling file with same basename: `about.css`
+3. Shared directory: `pages/css/about.css`
+
+**Enqueue behavior:**
+
+- CSS loads on the frontend and in the block editor (page-specific only)
+- JS loads on the frontend only (not in the editor)
+- Assets use `filemtime` for cache-busting versioning
+- If no asset file exists, the corresponding meta field is cleared
+
+**Why separate files instead of inline styles/scripts?**
+
+- Better caching — browsers cache external files independently
+- Cleaner diffs — CSS/JS changes don't pollute HTML diffs
+- More WordPress-native — uses standard `wp_enqueue_style`/`wp_enqueue_script`
+- Editor parity — CSS works in the block editor without parsing `<style>` from post content
+- Simpler for future pull/sync/status features
+
 ## Description
 
 Pages as Code is a one-way file-to-WordPress workflow for developers and coding agents. Author your page content as `.html` files with YAML front matter and Gutenberg block markup, then push them to WordPress using WP-CLI.
 
 **Key features:**
 
-- Write pages as `.html` files with YAML front matter (title, slug, status, template, parent, meta)
+- Write pages as `.html` files with YAML front matter (title, slug, status, template, parent, css, js, meta)
 - Push pages to WordPress with the `wp pac push <file>` WP-CLI command
 - SHA-256 content hashing skips unchanged pages automatically
+- Sibling CSS/JS asset resolution with three-tier fallback (front matter > sibling > shared directory)
+- Page-specific CSS enqueued on frontend and block editor; JS enqueued frontend only
 - Parent page resolution by slug
-- Plugin tracking meta (`_pac_managed`, `_pac_source`, `_pac_hash`, `_pac_last_push_gmt`)
+- Plugin tracking meta (`_pac_managed`, `_pac_source`, `_pac_hash`, `_pac_css`, `_pac_js`)
 - Path traversal protection and capability checks (`edit_pages`)
 - JSON output format support (`--format=json`)
 - Built-in Claude Code skill with progressive disclosure for AI-assisted page creation
@@ -259,9 +296,10 @@ Yes. Pages as Code is a CLI-only tool with no admin UI. It requires WP-CLI 2.0 o
 pages-as-code/
   pages-as-code.php               Plugin bootstrap, activation hook
   includes/
-    class-pac-file.php             File parsing: front matter + body
-    class-pac-pusher.php           Create/update logic, hash comparison
+    class-pac-file.php             File parsing: front matter, body, asset resolution
+    class-pac-pusher.php           Create/update logic, hash comparison, asset meta
     class-pac-cli.php              WP-CLI command registration
+    class-pac-assets.php           Frontend + editor CSS/JS enqueue
   .claude/skills/pages-as-code/    Claude Code skill (copied to pages dir)
   assets/
     pages-CLAUDE.md                Agent instructions (copied to pages dir)
@@ -274,6 +312,15 @@ pages-as-code/
 ```
 
 ## Changelog
+
+### 1.5.0
+
+- Sibling CSS/JS asset support with three-tier resolution
+- Page-specific CSS enqueued on frontend and block editor
+- Page-specific JS enqueued on frontend only
+- New `PAC_Assets` class for WordPress-native enqueue
+- Asset path safety validation under `WP_CONTENT_DIR`
+- CLI reports resolved asset paths after push
 
 ### 1.3.0
 

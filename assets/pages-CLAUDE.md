@@ -27,6 +27,9 @@ The skill includes a validation script, starter template, and complete block edi
 - **Push parents before children.** If a page has `parent: company`, the `company` page must already exist in WordPress.
 - **Re-pushing an unchanged file is a no-op.** The plugin tracks a SHA-256 hash and skips identical content.
 - **`--user` flag is required** in most hosting environments to pass the `edit_pages` capability check.
+- **Sibling CSS/JS assets are auto-resolved.** Place `about.css` next to `about.html` and it's picked up on push.
+- **CSS loads in frontend + editor.** JS loads on frontend only.
+- **Start from the theme.** Analyze theme styles before generating CSS — prefer additive styling over resets.
 
 ## WP-CLI
 

@@ -2,6 +2,34 @@
 
 All notable changes to Pages as Code will be documented in this file.
 
+## [1.5.0] - 2026-04-03
+
+### Added
+- Sibling CSS/JS asset support for page files
+- Three-tier asset resolution: front matter path > sibling file > shared `pages/css/` or `pages/js/` directory
+- `css` and `js` front matter fields for explicit asset path overrides (relative to `wp-content/`)
+- Frontend enqueue: page-specific CSS and JS loaded only on the corresponding page
+- Editor enqueue: page-specific CSS loaded in the block editor for styling parity
+- Post meta: `_pac_css`, `_pac_js`, `_pac_css_hash`, `_pac_js_hash` written on push
+- `PAC_Assets` class for WordPress-native enqueue via `wp_enqueue_scripts` and `enqueue_block_editor_assets`
+- `PAC_File::resolve_asset()` and `PAC_File::validate_asset_path()` public helpers
+- CLI reports resolved CSS/JS paths after push
+- Asset path safety: all resolved paths validated under `WP_CONTENT_DIR`
+- filemtime-based versioning for cache busting
+- Claude skill updated with CSS/JS asset conventions and style philosophy
+
+### Changed
+- `PAC_Pusher::push()` results now include `css` and `js` keys
+- Page standards reference updated with asset file convention
+- Generate workflow updated with asset creation guidance
+- Version bump to 1.5.0
+
+### Design decisions
+- CSS loads on both frontend and block editor for styling parity
+- JS loads on frontend only (editor scripts often break in the editor iframe)
+- Assets cleared from meta if file is missing at push time
+- No inline `<style>`/`<script>` parsing from HTML body — assets are always separate files
+
 ## [1.4.0] - 2026-04-03
 
 ### Added

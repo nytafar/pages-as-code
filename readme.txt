@@ -4,7 +4,7 @@ Tags: pages, cli, gutenberg, blocks, developer-tools
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 1.4.0
+Stable tag: 1.5.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -16,11 +16,13 @@ Pages as Code is a one-way file-to-WordPress workflow for developers and coding 
 
 **Key features:**
 
-- Write pages as `.html` files with YAML front matter (title, slug, status, template, parent, meta)
+- Write pages as `.html` files with YAML front matter (title, slug, status, template, parent, css, js, meta)
 - Push pages to WordPress with the `wp pac push <file>` WP-CLI command
 - SHA-256 content hashing skips unchanged pages automatically
+- Sibling CSS/JS asset resolution with three-tier fallback (front matter > sibling > shared directory)
+- Page-specific CSS enqueued on frontend and block editor; JS enqueued frontend only
 - Parent page resolution by slug
-- Plugin tracking meta (`_pac_managed`, `_pac_source`, `_pac_hash`, `_pac_last_push_gmt`)
+- Plugin tracking meta (`_pac_managed`, `_pac_source`, `_pac_hash`, `_pac_css`, `_pac_js`)
 - Path traversal protection and capability checks (`edit_pages`)
 - JSON output format support (`--format=json`)
 - Built-in Claude Code skill with progressive disclosure for AI-assisted page creation
@@ -102,6 +104,15 @@ Yes. Pages as Code is a CLI-only tool with no admin UI. It requires WP-CLI 2.0 o
 No screenshots. Pages as Code is a CLI-only tool with no admin interface.
 
 == Changelog ==
+
+= 1.5.0 =
+
+* Sibling CSS/JS asset support with three-tier resolution
+* Page-specific CSS enqueued on frontend and block editor
+* Page-specific JS enqueued on frontend only
+* New `PAC_Assets` class for WordPress-native enqueue
+* Asset path safety validation under `WP_CONTENT_DIR`
+* CLI reports resolved asset paths after push
 
 = 1.3.0 =
 
