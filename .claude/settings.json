@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_FILE_PATH\" | grep -qE '(README\\.md|readme\\.meta\\.json)$'; then echo 'readme source modified — readme.txt will be regenerated on commit'; fi"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_FILE_PATH\" | grep -qE '(README\\.md|readme\\.meta\\.json)$'; then php tools/generate-readme.php 2>&1; fi"
+          }
+        ]
+      }
+    ]
+  }
+}

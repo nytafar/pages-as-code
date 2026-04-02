@@ -2,6 +2,23 @@
 
 All notable changes to Pages as Code will be documented in this file.
 
+## [1.4.0] - 2026-04-03
+
+### Added
+- Rich README.md as canonical documentation source for GitHub
+- `readme.meta.json` for WordPress-specific metadata
+- `tools/generate-readme.php` to auto-generate readme.txt from README.md
+- Pre-commit hook to regenerate readme.txt when README.md changes
+- Claude Code project hook (`.claude/settings.json`) for live readme regeneration
+- `assets/pages-CLAUDE.md` for user-facing agent instructions (separate from plugin dev)
+- Plugin development CLAUDE.md with architecture docs and conventions
+
+### Changed
+- readme.txt is now auto-generated — do not edit directly
+- Activation hook copies from `assets/pages-CLAUDE.md` instead of root `CLAUDE.md`
+- Root `CLAUDE.md` is now plugin development instructions only
+- Version bump to 1.4.0
+
 ## [1.3.0] - 2026-04-03
 
 ### Added

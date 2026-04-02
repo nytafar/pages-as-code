@@ -1,0 +1,12 @@
+{
+  "pluginName": "Pages as Code",
+  "contributors": ["lassejellum"],
+  "tags": ["pages", "cli", "gutenberg", "blocks", "developer-tools"],
+  "requiresAtLeast": "6.0",
+  "testedUpTo": "6.7",
+  "requiresPHP": "7.4",
+  "stableTag": "1.4.0",
+  "license": "GPLv2 or later",
+  "licenseUri": "https://www.gnu.org/licenses/gpl-2.0.html",
+  "shortDescription": "File-backed Gutenberg pages for WordPress. Author page content as .html files with YAML front matter and block markup, push to WordPress via WP-CLI."
+}

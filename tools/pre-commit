@@ -1,0 +1,9 @@
+#!/bin/sh
+# Pre-commit hook: regenerate readme.txt from README.md + readme.meta.json
+# Install: cp tools/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+
+# Only run if README.md or readme.meta.json are staged
+if git diff --cached --name-only | grep -qE '^(README\.md|readme\.meta\.json)$'; then
+  php tools/generate-readme.php
+  git add readme.txt
+fi

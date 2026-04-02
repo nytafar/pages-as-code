@@ -3,7 +3,7 @@
  * Plugin Name: Pages as Code
  * Plugin URI:  https://github.com/nytafar/pages-as-code
  * Description: File-backed Gutenberg pages for WordPress. Author page content as .html files with front matter and block markup, push to WordPress via WP-CLI.
- * Version:     1.3.0
+ * Version:     1.4.0
  * Author:      Lasse Jellum
  * Author URI:  https://jellum.net
  * License:     GPL-2.0-or-later
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'PAC_VERSION', '1.3.0' );
+define( 'PAC_VERSION', '1.4.0' );
 define( 'PAC_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'PAC_PAGES_ROOT', WP_CONTENT_DIR . '/pages' );
 
@@ -38,8 +38,8 @@ function pac_activate() {
 		file_put_contents( $gitkeep, '' );
 	}
 
-	// Copy CLAUDE.md to pages root so AI agents pick it up automatically.
-	$source = PAC_PLUGIN_DIR . 'CLAUDE.md';
+	// Copy agent instructions to pages root (separate from plugin dev CLAUDE.md).
+	$source = PAC_PLUGIN_DIR . 'assets/pages-CLAUDE.md';
 	$dest   = PAC_PAGES_ROOT . '/CLAUDE.md';
 	if ( file_exists( $source ) ) {
 		copy( $source, $dest );
