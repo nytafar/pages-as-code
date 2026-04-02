@@ -139,7 +139,8 @@ class PAC_File {
 		// If file doesn't exist, realpath returns false. Check with dirname.
 		if ( false === $real_path ) {
 			$dir_real = realpath( dirname( $full_path ) );
-			if ( false === $dir_real || 0 !== strpos( $dir_real, realpath( PAC_PAGES_ROOT ) ) ) {
+			$root_real = realpath( PAC_PAGES_ROOT );
+			if ( false === $dir_real || 0 !== strpos( $dir_real . '/', $root_real . '/' ) ) {
 				return new WP_Error(
 					'pac_path_traversal',
 					sprintf( 'Path outside managed root: %s', $relative_path )

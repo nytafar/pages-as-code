@@ -4,7 +4,7 @@ Tags: pages, cli, gutenberg, blocks, developer-tools
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 1.1.0
+Stable tag: 1.2.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -74,7 +74,7 @@ The plugin computes a SHA-256 hash of the file contents and stores it as post me
 
 **AI agent support**
 
-The plugin ships a `CLAUDE.md` instructions file and a `pac-page` skill reference for AI coding agents. These are copied to the pages directory on activation and provide block editor markup guidance, front matter reference, and CLI usage documentation.
+The plugin ships a `CLAUDE.md` instructions file and three Claude Code skills (`pages-as-code`, `pac-markup`, `pac-cli`) for AI coding agents. These are deployed to `.claude/skills/` in the pages directory on activation and provide workflow orchestration, block editor markup guidance, front matter reference, and CLI usage documentation.
 
 == Frequently Asked Questions ==
 
@@ -107,6 +107,13 @@ Yes. Pages as Code provides a WP-CLI command (`wp pac push`) and requires WP-CLI
 No screenshots. Pages as Code is a CLI-only tool with no admin interface.
 
 == Changelog ==
+
+= 1.2.0 =
+* Restructured AI skills into proper Claude Code `.claude/skills/` format
+* Master skill `pages-as-code` with two sub-module skills: `pac-markup` and `pac-cli`
+* Block editor reference moved to `pac-markup/references/block-editor.md`
+* Activation now scaffolds full `.claude/skills/` tree in pages directory
+* Removed old `skills/` directory in favor of `.claude/skills/`
 
 = 1.1.0 =
 * Added CLAUDE.md agent instructions file, copied to pages directory on activation

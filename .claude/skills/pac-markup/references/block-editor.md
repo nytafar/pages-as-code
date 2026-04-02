@@ -1,177 +1,38 @@
-# Pages as Code — Page Creation Skill
+# WordPress Block Editor: Native Block HTML Syntax
 
-Create and publish WordPress pages using the Pages as Code plugin. This skill has two submodules: **Markup** (creating compliant .html files) and **CLI** (pushing them to WordPress).
+## Table of Contents
 
----
+- [Markup rules](#markup-rules)
+- [Core block reference table](#core-block-reference-table)
+- [Custom/plugin blocks](#customplugin-blocks)
 
-## Submodule 1: Markup — Creating Page Files
+## Markup rules
 
-### File location
+Every Gutenberg block is stored as HTML wrapped in `<!-- wp:name -->` comments.
 
-All page files live under `wp-content/pages/`. Subdirectories are organizational only — they do not affect WordPress page hierarchy or URLs.
+- **JS block name**: `core/paragraph`, `core/image`, `core/group`, etc.
+- **Stored comment name**: `wp:paragraph`, `wp:image`, `wp:group` (no `core/` prefix)
+- **Attributes**: valid JSON inside the opening comment
+- **Static blocks** have saved HTML and a closing tag
+- **Dynamic blocks** are self-closing, rendered server-side
 
-### File format
+### Static block syntax
 
-Every `.html` file has two parts:
-
-1. **YAML front matter** between `---` delimiters
-2. **Body**: raw Gutenberg block markup
-
-```html
----
-title: Page Title
-slug: page-slug
-status: draft
-template: template-slug
-parent: parent-page-slug
-meta:
-  seo_title: SEO override title
-  custom_key: custom value
----
-<!-- wp:paragraph -->
-<p>Block content goes here.</p>
-<!-- /wp:paragraph -->
-```
-
-### Front matter fields
-
-| Field      | Required | Default | Maps to         | Notes |
-|------------|----------|---------|-----------------|-------|
-| `title`    | yes      | —       | `post_title`    | Always required. |
-| `slug`     | no       | filename| `post_name`     | Primary key. Falls back to filename without `.html`. |
-| `status`   | no       | `draft` | `post_status`   | Use `publish` to make live immediately. |
-| `template` | no       | default | `page_template` | Must exist in the active theme. Omit if unsure. |
-| `parent`   | no       | —       | `post_parent`   | Slug of parent page. Parent must exist before push. |
-| `meta`     | no       | —       | post meta       | One level of key-value pairs. Written as-is. |
-
-### Rules for creating files
-
-1. `title` is always required. The push will fail without it.
-2. `slug` should be unique across all page files. If two files share a slug, the second push overwrites the first.
-3. `template` must be a valid template slug in the active theme. If the template doesn't exist, WordPress rejects the post. When in doubt, omit it.
-4. `parent` is resolved by slug at push time. Push parent pages before children.
-5. `status` accepts any valid WordPress post status: `draft`, `publish`, `pending`, `private`, `future`.
-6. `meta` supports simple key-value pairs only (one level deep). Values are sanitized on write.
-
-### Creating vs publishing
-
-Creating the file and publishing it to WordPress are **separate actions**:
-
-1. **Create**: Write the `.html` file to `wp-content/pages/`
-2. **Publish**: Run `wp pac push <file>` to insert/update the page in WordPress
-
-The file on disk has no effect on WordPress until explicitly pushed.
-
----
-
-## Submodule 2: CLI — Pushing Pages to WordPress
-
-### Command
-
-```bash
-wp pac push <file> [--format=<format>] [--user=<id>]
-```
-
-- `<file>` — path relative to `wp-content/pages/` (e.g., `about.html`, `landing/product-a.html`)
-- `--format` — `human` (default) or `json`
-- `--user` — WordPress user ID with `edit_pages` capability (required in most hosting environments)
-
-### Behavior
-
-1. Reads and parses the file (front matter + body)
-2. Computes SHA-256 hash of file contents
-3. Looks up existing page by slug
-4. If page exists and hash matches: **skip** (no-op)
-5. If page exists and hash differs: **update** (creates revision)
-6. If page doesn't exist: **create**
-7. Writes tracking meta: `_pac_managed`, `_pac_source`, `_pac_hash`, `_pac_last_push_gmt`
-8. Writes user-defined meta from front matter
-
-### GridPane hosting
-
-On GridPane servers, WP-CLI runs through `gp wp`:
-
-```bash
-# Find admin users
-gp wp <site> user list --role=administrator --fields=ID,user_login
-
-# Push a page (must specify --user for capability check)
-gp wp <site> pac push about.html --user=1
-
-# Verify the page
-gp wp <site> post list --post_type=page --fields=ID,post_title,post_name,post_status
-```
-
-Replace `<site>` with the site domain (e.g., `staging.myrvann.no`).
-
-### Standard WP-CLI hosting
-
-```bash
-wp pac push about.html
-wp pac push landing/product-a.html --format=json
-```
-
-### Output examples
-
-```
-Success: Created page "About" (ID 42, slug: about).
-Success: Updated page "About" (ID 42, slug: about).
-Success: Page "About" unchanged, skipping.
-Error: File not found: landing/missing.html
-Error: Front matter parse error in about.html: missing title field.
-Error: Parent page "company" not found.
-```
-
-### JSON output
-
-```json
-{"status":"created","id":42,"slug":"about","title":"About","file":"about.html"}
-{"status":"unchanged","id":42,"slug":"about","title":"About","file":"about.html"}
-{"status":"error","message":"File not found: landing/missing.html","file":"landing/missing.html"}
-```
-
-### Workflow for pushing multiple pages
-
-Push parent pages first, then children:
-
-```bash
-wp pac push company.html --user=1
-wp pac push company/about.html --user=1
-wp pac push company/team.html --user=1
-```
-
-Re-pushing an unchanged file is safe — the hash check makes it a no-op.
-
----
-
-## Submodule 3: Block Editor Markup Reference
-
-### Core markup rules
-
-Every Gutenberg block is stored as HTML wrapped in `<!-- wp:name -->` comments. There are two forms:
-
-**Static blocks** (have saved HTML):
 ```html
 <!-- wp:name {"attr":"value"} -->
 <valid saved HTML>
 <!-- /wp:name -->
 ```
 
-**Dynamic/self-closing blocks** (rendered server-side):
+### Self-closing (dynamic) block syntax
+
 ```html
 <!-- wp:name {"attr":"value"} /-->
 ```
 
-### Key rules
+### Nesting
 
-- Block names in HTML comments use `wp:` prefix, not `core/`. So `core/paragraph` becomes `wp:paragraph`.
-- Attributes must be valid JSON inside the opening comment.
-- Inner blocks nest inside the saved HTML of their parent block.
-- Never invent block names — use only canonical names from the reference table below.
-- Always output valid HTML fragments inside the saved HTML.
-- Use consistent indentation for readability but WordPress doesn't require it.
-
-### Nesting example
+Inner blocks go inside the parent's saved HTML. Always match open/close order.
 
 ```html
 <!-- wp:columns -->
@@ -179,15 +40,7 @@ Every Gutenberg block is stored as HTML wrapped in `<!-- wp:name -->` comments. 
   <!-- wp:column -->
   <div class="wp-block-column">
     <!-- wp:paragraph -->
-    <p>Left column content.</p>
-    <!-- /wp:paragraph -->
-  </div>
-  <!-- /wp:column -->
-
-  <!-- wp:column -->
-  <div class="wp-block-column">
-    <!-- wp:paragraph -->
-    <p>Right column content.</p>
+    <p>Content.</p>
     <!-- /wp:paragraph -->
   </div>
   <!-- /wp:column -->
@@ -195,12 +48,19 @@ Every Gutenberg block is stored as HTML wrapped in `<!-- wp:name -->` comments. 
 <!-- /wp:columns -->
 ```
 
-### Core block reference table
+### Rules for AI agents
+
+- Never invent block names — use only canonical names from the table below
+- Always output valid HTML fragments inside saved HTML
+- If the block is dynamic in the table, use self-closing form
+- Omit `core/` in comments: `core/paragraph` → `wp:paragraph`
+
+## Core block reference table
 
 | JS block name (`core/...`) | Comment (`wp:...`) | Type | Minimal example |
 |---|---|---|---|
 | `core/paragraph` | `wp:paragraph` | static | `<!-- wp:paragraph {"align":"center"} --><p class="has-text-align-center">Text</p><!-- /wp:paragraph -->` |
-| `core/heading` | `wp:heading` | static | `<!-- wp:heading {"level":2} --><h2>Heading</h2><!-- /wp:heading -->` |
+| `core/heading` | `wp:heading` | static | `<!-- wp:heading {"level":2} --><h2 class="wp-block-heading">Heading</h2><!-- /wp:heading -->` |
 | `core/image` | `wp:image` | static | `<!-- wp:image {"id":42} --><figure class="wp-block-image"><img src="..."/></figure><!-- /wp:image -->` |
 | `core/gallery` | `wp:gallery` | static | `<!-- wp:gallery {"ids":[10,20]} --><div class="wp-block-gallery">...</div><!-- /wp:gallery -->` |
 | `core/columns` | `wp:columns` | static | `<!-- wp:columns --><div class="wp-block-columns">...</div><!-- /wp:columns -->` |
@@ -251,8 +111,13 @@ Every Gutenberg block is stored as HTML wrapped in `<!-- wp:name -->` comments. 
 | `core/query-pagination` | `wp:query-pagination` | static | `<!-- wp:query-pagination --><div>...</div><!-- /wp:query-pagination -->` |
 | `core/query-pagination-next` | `wp:query-pagination-next` | dynamic | `<!-- wp:query-pagination-next /-->` |
 | `core/query-pagination-previous` | `wp:query-pagination-previous` | dynamic | `<!-- wp:query-pagination-previous /-->` |
+| `core/form` | `wp:form` | experimental | `<!-- wp:form {"method":"post"} --><form class="wp-block-form">...</form><!-- /wp:form -->` |
+| `core/accordion` | `wp:accordion` | experimental | `<!-- wp:accordion --><div class="wp-block-accordion">...</div><!-- /wp:accordion -->` |
+| `core/accordion-item` | `wp:accordion-item` | nested | Child of `core/accordion`. |
+| `core/accordion-heading` | `wp:accordion-heading` | nested | Child of `core/accordion-item`. |
+| `core/accordion-panel` | `wp:accordion-panel` | nested | Child of `core/accordion-item`. |
 
-### Custom/plugin blocks
+## Custom/plugin blocks
 
 Custom blocks follow the same pattern but keep their namespace:
 
@@ -262,4 +127,4 @@ Custom blocks follow the same pattern but keep their namespace:
 <!-- /wp:my-plugin/testimonial -->
 ```
 
-When in doubt, treat a plugin block as static unless its documentation says otherwise.
+Treat plugin blocks as static unless documentation explicitly marks them as dynamic.

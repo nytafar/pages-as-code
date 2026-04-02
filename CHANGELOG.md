@@ -2,6 +2,24 @@
 
 All notable changes to Pages as Code will be documented in this file.
 
+## [1.2.0] - 2026-04-02
+
+### Added
+- Master skill `pages-as-code` for workflow orchestration (`/pages-as-code`)
+- Sub-module skill `pac-markup` for page file creation and block editor reference (`/pac-markup`)
+- Sub-module skill `pac-cli` for WP-CLI push workflow and troubleshooting (`/pac-cli`)
+- Block editor reference with 50+ core blocks at `pac-markup/references/block-editor.md`
+- Recursive directory copy helper `pac_copy_directory()` for skill deployment
+
+### Changed
+- Skills moved from `skills/` to `.claude/skills/` for Claude Code auto-discovery
+- Activation hook now scaffolds full `.claude/skills/` tree in pages directory
+- CLAUDE.md updated to reference new skill structure
+- Version bump to 1.2.0
+
+### Removed
+- Old `skills/pac-page.md` monolithic skill file
+
 ## [1.1.0] - 2026-04-02
 
 ### Added
