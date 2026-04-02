@@ -1,64 +1,59 @@
 ---
 name: pages-as-code
-description: Create and publish WordPress pages using the Pages as Code plugin. Use when creating .html page files with Gutenberg block markup, pushing pages to WordPress via WP-CLI, or working with the wp pac push workflow. Triggers on requests to create WordPress pages from files, generate block editor markup, or push content to WordPress.
+description: Create and publish WordPress pages as code. Use when generating .html page files with Gutenberg block markup and YAML front matter, pushing pages to WordPress via WP-CLI (wp pac push), troubleshooting push errors, working with GridPane hosting, or managing the file-to-WordPress content workflow. Covers page file creation, block editor syntax, CLI publishing, and deployment verification.
 ---
 
 # Pages as Code
 
-Create WordPress pages as `.html` files with YAML front matter and Gutenberg block markup, then push them to WordPress via WP-CLI.
+One-way file-to-WordPress workflow. Create `.html` page files with front matter and block markup, push them to WordPress via WP-CLI.
 
-## Workflow
+## Shared foundations
 
-1. **Create markup** → Use `/pac-markup` to generate a compliant `.html` page file
-2. **Push to WordPress** → Use `/pac-cli` to push the file and verify
+Before either workflow, read [references/shared/page-standards.md](references/shared/page-standards.md) for file format, front matter fields, and naming rules.
 
-Creating a file and publishing it are **separate actions**. The file on disk has no effect on WordPress until explicitly pushed.
-
-## Quick start
-
-```html
----
-title: About Us
-slug: about
-status: publish
----
-<!-- wp:paragraph -->
-<p>Hello world.</p>
-<!-- /wp:paragraph -->
-```
-
-Save to `wp-content/pages/about.html`, then push:
-
-```bash
-wp pac push about.html --user=1
-```
-
-## Sub-module skills
-
-### /pac-markup — Page file creation
-
-Invoke when creating or editing `.html` page files. Covers:
-
-- YAML front matter format and field reference
-- Gutenberg block markup syntax rules
-- Complete core block reference table (50+ blocks)
-- Nesting rules, static vs dynamic blocks
-
-### /pac-cli — Push and verify
-
-Invoke when pushing pages to WordPress or troubleshooting the CLI. Covers:
-
-- `wp pac push` command usage and flags
-- GridPane hosting specifics (`gp wp` wrapper)
-- Finding admin users for `--user` flag
-- Output formats and error handling
-- Multi-page push ordering (parents first)
-
-## Key rules
-
-- `title` is the only required front matter field
-- `slug` falls back to filename if omitted
+Key principles:
+- Creating a file and publishing it are **separate actions**
+- `title` is the only required front matter field; slug falls back to filename
 - `template` must exist in the active theme — omit if unsure
-- Push parents before children when using `parent` field
+- Push parents before children
 - Re-pushing unchanged files is a no-op (SHA-256 hash check)
 - `--user=<admin_id>` is required in most hosting environments
+
+## Route by intent
+
+### Generate a page
+
+Read [references/generate/workflow.md](references/generate/workflow.md) for the step-by-step creation process.
+
+For block editor syntax and the complete core block table (50+ blocks), read [references/generate/block-editor.md](references/generate/block-editor.md).
+
+Use the starter template at [templates/page-shell.html](templates/page-shell.html) as a starting point.
+
+### Publish a page
+
+Read [references/publish/workflow.md](references/publish/workflow.md) for the push process, multi-page ordering, and verification.
+
+For error diagnosis and hosting-specific commands, read [references/publish/troubleshooting.md](references/publish/troubleshooting.md).
+
+### Both (generate + publish)
+
+Read shared standards first, then generate workflow, then publish workflow in sequence.
+
+## Quick reference
+
+```bash
+# Create file
+wp-content/pages/about.html
+
+# Push
+wp pac push about.html --user=1
+
+# Verify
+wp post list --post_type=page --meta_key=_pac_managed --fields=ID,post_title,post_name,post_status
+```
+
+Always try standard `wp` first. If it fails or the environment is GridPane (check: `command -v gp` or `/usr/local/bin/gp` exists), fall back to `gp wp <site>` syntax. See [references/publish/troubleshooting.md](references/publish/troubleshooting.md) for detection and fallback.
+
+## Validation
+
+Run `scripts/validate-page.sh <file>` to check front matter and basic block structure before pushing.

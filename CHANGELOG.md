@@ -2,6 +2,26 @@
 
 All notable changes to Pages as Code will be documented in this file.
 
+## [1.3.0] - 2026-04-03
+
+### Added
+- Progressive disclosure skill structure with intent-based routing (generate / publish / both)
+- Shared page standards reference (`references/shared/page-standards.md`)
+- Generate workflow reference (`references/generate/workflow.md`)
+- Publish workflow reference (`references/publish/workflow.md`)
+- Troubleshooting guide with environment detection (`references/publish/troubleshooting.md`)
+- Page validation script (`scripts/validate-page.sh`)
+- Starter page template (`templates/page-shell.html`)
+
+### Changed
+- Consolidated three separate skills (pages-as-code, pac-markup, pac-cli) into one orchestrator skill
+- GridPane commands now used only as fallback when standard `wp` CLI fails or GridPane environment detected
+- CLAUDE.md simplified to reference single skill with progressive loading
+- Version bump to 1.3.0
+
+### Removed
+- Separate `pac-markup` and `pac-cli` skill directories
+
 ## [1.2.0] - 2026-04-02
 
 ### Added
