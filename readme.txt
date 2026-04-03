@@ -20,6 +20,7 @@ Pages as Code is a one-way file-to-WordPress workflow for developers and coding 
 - Push pages to WordPress with the `wp pac push <file>` WP-CLI command
 - SHA-256 content hashing skips unchanged pages automatically
 - Sibling CSS/JS asset resolution with three-tier fallback (front matter > sibling > shared directory)
+- Asset metadata stays in sync even when only sibling/shared CSS or JS files change
 - Page-specific CSS enqueued on frontend and block editor; JS enqueued frontend only
 - Parent page resolution by slug
 - Plugin tracking meta (`_pac_managed`, `_pac_source`, `_pac_hash`, `_pac_css`, `_pac_js`)
@@ -94,7 +95,7 @@ The next `wp pac push` for that file will overwrite any changes made in WordPres
 Pages as Code computes a SHA-256 hash of the file content and stores it as post meta (`_pac_hash`). On subsequent pushes, if the hash matches, the push is skipped. This avoids unnecessary database writes.
 
 = What YAML front matter fields are supported? =
-`title` (required), `slug`, `status`, `template`, `parent`, and `meta`.
+`title` (required), `slug`, `status`, `template`, `parent`, `css`, `js`, and `meta`. Protected meta keys are ignored.
 
 = Does it require WP-CLI? =
 Yes. Pages as Code is a CLI-only tool with no admin UI. It requires WP-CLI 2.0 or later.
