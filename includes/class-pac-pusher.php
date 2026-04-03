@@ -65,15 +65,7 @@ class PAC_Pusher {
 
 		self::write_meta( $post_id, $file );
 
-		return array(
-			'status' => 'created',
-			'id'     => $post_id,
-			'slug'   => $file->slug,
-			'title'  => $file->title,
-			'file'   => $file->relative_path,
-			'css'    => $file->css_path,
-			'js'     => $file->js_path,
-		);
+		return self::build_result( 'created', $post_id, $file );
 	}
 
 	/**
@@ -88,15 +80,12 @@ class PAC_Pusher {
 		$stored_hash = get_post_meta( $existing->ID, '_pac_hash', true );
 
 		if ( $stored_hash === $file->hash ) {
-			return array(
-				'status' => 'unchanged',
-				'id'     => $existing->ID,
-				'slug'   => $file->slug,
-				'title'  => $file->title,
-				'file'   => $file->relative_path,
-				'css'    => $file->css_path,
-				'js'     => $file->js_path,
-			);
+			if ( self::has_asset_changes( $existing->ID, $file ) ) {
+				self::write_meta( $existing->ID, $file );
+				return self::build_result( 'updated', $existing->ID, $file );
+			}
+
+			return self::build_result( 'unchanged', $existing->ID, $file );
 		}
 
 		$post_data = array(
@@ -119,15 +108,7 @@ class PAC_Pusher {
 
 		self::write_meta( $existing->ID, $file );
 
-		return array(
-			'status' => 'updated',
-			'id'     => $existing->ID,
-			'slug'   => $file->slug,
-			'title'  => $file->title,
-			'file'   => $file->relative_path,
-			'css'    => $file->css_path,
-			'js'     => $file->js_path,
-		);
+		return self::build_result( 'updated', $existing->ID, $file );
 	}
 
 	/**
@@ -148,8 +129,83 @@ class PAC_Pusher {
 
 		// Write user-defined meta from front matter.
 		foreach ( $file->meta as $key => $value ) {
-			update_post_meta( $post_id, sanitize_key( $key ), sanitize_text_field( $value ) );
+			$meta_key = self::sanitize_front_matter_meta_key( $key );
+			if ( ! $meta_key ) {
+				continue;
+			}
+
+			update_post_meta( $post_id, $meta_key, sanitize_text_field( $value ) );
 		}
+	}
+
+	/**
+	 * Build a standardized push result payload.
+	 *
+	 * @param string   $status  Result status.
+	 * @param int      $post_id Post ID.
+	 * @param PAC_File $file    Parsed file.
+	 * @return array
+	 */
+	private static function build_result( $status, $post_id, PAC_File $file ) {
+		return array(
+			'status' => $status,
+			'id'     => $post_id,
+			'slug'   => $file->slug,
+			'title'  => $file->title,
+			'file'   => $file->relative_path,
+			'css'    => $file->css_path,
+			'js'     => $file->js_path,
+		);
+	}
+
+	/**
+	 * Determine whether resolved asset state differs from stored post meta.
+	 *
+	 * @param int      $post_id Post ID.
+	 * @param PAC_File $file    Parsed file.
+	 * @return bool True when CSS or JS path/hash metadata has changed.
+	 */
+	private static function has_asset_changes( $post_id, PAC_File $file ) {
+		return self::asset_meta_has_changed( $post_id, '_pac_css', '_pac_css_hash', $file->css_path, $file->css_hash )
+			|| self::asset_meta_has_changed( $post_id, '_pac_js', '_pac_js_hash', $file->js_path, $file->js_hash );
+	}
+
+	/**
+	 * Determine whether a specific asset meta pair differs from stored values.
+	 *
+	 * @param int         $post_id  Post ID.
+	 * @param string      $path_key Meta key for the path.
+	 * @param string      $hash_key Meta key for the hash.
+	 * @param string|null $path     Resolved asset path, or null.
+	 * @param string|null $hash     Resolved asset hash, or null.
+	 * @return bool True when the stored values differ.
+	 */
+	private static function asset_meta_has_changed( $post_id, $path_key, $hash_key, $path, $hash ) {
+		$stored_path = get_post_meta( $post_id, $path_key, true );
+		$stored_hash = get_post_meta( $post_id, $hash_key, true );
+
+		if ( null === $path ) {
+			return '' !== $stored_path || '' !== $stored_hash;
+		}
+
+		return $stored_path !== $path || $stored_hash !== $hash;
+	}
+
+	/**
+	 * Validate and sanitize a front matter meta key before writing post meta.
+	 *
+	 * Protected meta keys are skipped to avoid overwriting WordPress or plugin internals.
+	 *
+	 * @param string $key Raw front matter meta key.
+	 * @return string|false Sanitized meta key or false when the key is not allowed.
+	 */
+	private static function sanitize_front_matter_meta_key( $key ) {
+		$meta_key = sanitize_key( $key );
+		if ( empty( $meta_key ) || is_protected_meta( $meta_key, 'post' ) ) {
+			return false;
+		}
+
+		return $meta_key;
 	}
 
 	/**

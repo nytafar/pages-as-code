@@ -98,7 +98,7 @@ meta:
 | `parent` | no | -- | Slug of parent page. Parent must exist before push. |
 | `css` | no | auto-resolved | CSS asset path relative to `wp-content/`. Overrides sibling resolution. |
 | `js` | no | auto-resolved | JS asset path relative to `wp-content/`. Overrides sibling resolution. |
-| `meta` | no | -- | Key-value map written as post meta. |
+| `meta` | no | -- | Key-value map written as post meta. Protected keys (such as underscore-prefixed keys) are ignored. |
 
 ### File location
 
@@ -138,6 +138,7 @@ wp-content/
 - JS loads on the frontend only (not in the editor)
 - Assets use `filemtime` for cache-busting versioning
 - If no asset file exists, the corresponding meta field is cleared
+- Asset metadata is refreshed on every push, even when only the CSS/JS files changed
 
 **Why separate files instead of inline styles/scripts?**
 
@@ -157,6 +158,7 @@ Pages as Code is a one-way file-to-WordPress workflow for developers and coding 
 - Push pages to WordPress with the `wp pac push <file>` WP-CLI command
 - SHA-256 content hashing skips unchanged pages automatically
 - Sibling CSS/JS asset resolution with three-tier fallback (front matter > sibling > shared directory)
+- Asset metadata stays in sync even when only sibling/shared CSS or JS files change
 - Page-specific CSS enqueued on frontend and block editor; JS enqueued frontend only
 - Parent page resolution by slug
 - Plugin tracking meta (`_pac_managed`, `_pac_source`, `_pac_hash`, `_pac_css`, `_pac_js`)
@@ -284,7 +286,7 @@ Pages as Code computes a SHA-256 hash of the file content and stores it as post 
 
 **What YAML front matter fields are supported?**
 
-`title` (required), `slug`, `status`, `template`, `parent`, and `meta`.
+`title` (required), `slug`, `status`, `template`, `parent`, `css`, `js`, and `meta`. Protected meta keys are ignored.
 
 **Does it require WP-CLI?**
 

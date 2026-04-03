@@ -204,7 +204,7 @@ class PAC_File {
 		if ( false === $content_real ) {
 			return false;
 		}
-		return 0 === strpos( $real . '/', $content_real . '/' ) || $real === $content_real;
+		return self::is_path_within_root( $real, $content_real );
 	}
 
 	/**
@@ -226,7 +226,7 @@ class PAC_File {
 		if ( false === $real_path ) {
 			$dir_real = realpath( dirname( $full_path ) );
 			$root_real = realpath( PAC_PAGES_ROOT );
-			if ( false === $dir_real || 0 !== strpos( $dir_real . '/', $root_real . '/' ) ) {
+			if ( false === $dir_real || false === $root_real || ! self::is_path_within_root( $dir_real, $root_real ) ) {
 				return new WP_Error(
 					'pac_path_traversal',
 					sprintf( 'Path outside managed root: %s', $relative_path )
@@ -235,7 +235,8 @@ class PAC_File {
 			return $full_path;
 		}
 
-		if ( 0 !== strpos( $real_path, realpath( PAC_PAGES_ROOT ) ) ) {
+		$root_real = realpath( PAC_PAGES_ROOT );
+		if ( false === $root_real || ! self::is_path_within_root( $real_path, $root_real ) ) {
 			return new WP_Error(
 				'pac_path_traversal',
 				sprintf( 'Path outside managed root: %s', $relative_path )
@@ -341,5 +342,16 @@ class PAC_File {
 		}
 
 		return $value;
+	}
+
+	/**
+	 * Determine whether a resolved path is inside a resolved root path.
+	 *
+	 * @param string $path Resolved file or directory path.
+	 * @param string $root Resolved root directory path.
+	 * @return bool True when the path is the root or a descendant of it.
+	 */
+	private static function is_path_within_root( $path, $root ) {
+		return $path === $root || 0 === strpos( $path . '/', $root . '/' );
 	}
 }
