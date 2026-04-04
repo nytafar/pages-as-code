@@ -85,6 +85,7 @@ class PAC_Puller {
 			'post_status'            => array( 'publish', 'draft', 'pending', 'private', 'future' ),
 			'posts_per_page'         => 1,
 			'no_found_rows'          => true,
+			'update_post_meta_cache' => false,
 			'update_post_term_cache' => false,
 		) );
 
@@ -222,6 +223,26 @@ class PAC_Puller {
 		// Build paths.
 		$relative_path = '' !== $dir ? $dir . '/' . $filename : $filename;
 		$full_path     = PAC_PAGES_ROOT . '/' . $relative_path;
+		$root_real     = realpath( PAC_PAGES_ROOT );
+		$target_dir    = dirname( $full_path );
+		$target_real   = realpath( $target_dir );
+
+		// Reject directory traversal in output path.
+		if ( false === $root_real ) {
+			return new WP_Error( 'pac_path_error', 'Managed pages root is not available.' );
+		}
+		if ( false !== $target_real && $target_real !== $root_real && 0 !== strpos( $target_real . '/', $root_real . '/' ) ) {
+			return new WP_Error(
+				'pac_path_traversal',
+				sprintf( 'Output path outside managed root: %s', $relative_path )
+			);
+		}
+		if ( false === $target_real && $root_real !== $target_dir && 0 !== strpos( $target_dir, $root_real . '/' ) ) {
+			return new WP_Error(
+				'pac_path_traversal',
+				sprintf( 'Output path outside managed root: %s', $relative_path )
+			);
+		}
 
 		// Collision check.
 		if ( file_exists( $full_path ) && ! $force ) {
