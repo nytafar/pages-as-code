@@ -4,7 +4,7 @@ Tags: pages, cli, gutenberg, blocks, developer-tools
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 1.5.0
+Stable tag: 1.6.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -17,7 +17,8 @@ Pages as Code is a one-way file-to-WordPress workflow for developers and coding 
 **Key features:**
 
 - Write pages as `.html` files with YAML front matter (title, slug, status, template, parent, css, js, meta)
-- Push pages to WordPress with the `wp pac push <file>` WP-CLI command
+- Push pages to WordPress with `wp pac push <file>`
+- Validate block markup with `wp pac validate <file>` — structured JSON diagnostic reports
 - SHA-256 content hashing skips unchanged pages automatically
 - Sibling CSS/JS asset resolution with three-tier fallback (front matter > sibling > shared directory)
 - Page-specific CSS enqueued on frontend and block editor; JS enqueued frontend only
@@ -45,12 +46,19 @@ Pages as Code requires WP-CLI 2.0 or later.
 
 ```bash
 wp pac push <file> [--format=<format>] [--user=<id>]
+wp pac validate <file> [--strict] [--user=<id>]
 ```
+
+| Command | Description |
+|---------|-------------|
+| `wp pac push <file>` | Push a page file to WordPress |
+| `wp pac validate <file>` | Validate block markup and return a JSON diagnostic report |
 
 | Argument | Description |
 |----------|-------------|
 | `<file>` | Path relative to `wp-content/pages/` |
-| `--format` | `human` (default) or `json` |
+| `--format` | `human` (default) or `json` (push only) |
+| `--strict` | Treat warnings as fatal for exit code (validate only) |
 | `--user` | WordPress user ID with `edit_pages` capability |
 
 = Push behavior =
@@ -60,6 +68,28 @@ wp pac push <file> [--format=<format>] [--user=<id>]
 | Page doesn't exist | `wp_insert_post()` | `Created page "About" (ID 42, slug: about).` |
 | Page exists, file unchanged | Skip (no-op) | `Page "About" unchanged, skipping.` |
 | Page exists, file changed | `wp_update_post()` + revision | `Updated page "About" (ID 42, slug: about).` |
+
+= Validate block markup =
+
+```bash
+# Validate a page file — always outputs JSON
+wp pac validate about.html --user=1
+
+# Strict mode — warnings also cause exit code 1
+wp pac validate about.html --user=1 --strict
+
+# Filter issues with jq
+wp pac validate about.html --user=1 | jq '.issues[] | {path, blockName, rule, message}'
+```
+
+The validator checks for:
+- Bare HTML outside block comments (silently lost in the editor)
+- Invalid nesting (e.g. `core/button` outside `core/buttons`)
+- Missing wrapper elements and classes (e.g. image without `wp-block-image`)
+- Heading level attribute vs HTML tag mismatches
+- Unknown/unsupported block types (warning, not fatal)
+
+Exit codes: `0` = ok, `1` = fatal issues (or warnings with `--strict`).
 
 = Finding admin users =
 
@@ -104,6 +134,14 @@ Yes. Pages as Code is a CLI-only tool with no admin UI. It requires WP-CLI 2.0 o
 No screenshots. Pages as Code is a CLI-only tool with no admin interface.
 
 == Changelog ==
+
+= 1.6.0 =
+
+* `wp pac validate <file>` command for block markup validation with JSON diagnostic reports
+* `PAC_Validator` service with grammar, nesting, wrapper, and per-block validation rules
+* Detects bare HTML outside blocks, heading level mismatches, invalid nesting, missing wrapper classes
+* `--strict` flag treats warnings as fatal
+* Designed for agent tuning feedback loops and future push integration
 
 = 1.5.0 =
 
