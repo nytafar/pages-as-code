@@ -232,7 +232,7 @@ class PAC_File {
 		if ( false === $real_path ) {
 			$dir_real = realpath( dirname( $full_path ) );
 			$root_real = realpath( PAC_PAGES_ROOT );
-			if ( false === $root_real || false === $dir_real || 0 !== strpos( $dir_real . '/', $root_real . '/' ) ) {
+			if ( false === $root_real || false === $dir_real || ( $dir_real !== $root_real && 0 !== strpos( $dir_real . '/', $root_real . '/' ) ) ) {
 				return new WP_Error(
 					'pac_path_traversal',
 					sprintf( 'Path outside managed root: %s', $relative_path )

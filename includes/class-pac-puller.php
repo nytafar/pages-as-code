@@ -237,7 +237,7 @@ class PAC_Puller {
 				sprintf( 'Output path outside managed root: %s', $relative_path )
 			);
 		}
-		if ( false === $target_real && PAC_PAGES_ROOT !== $target_dir && 0 !== strpos( $target_dir, PAC_PAGES_ROOT . '/' ) ) {
+		if ( false === $target_real && $root_real !== $target_dir && 0 !== strpos( $target_dir, $root_real . '/' ) ) {
 			return new WP_Error(
 				'pac_path_traversal',
 				sprintf( 'Output path outside managed root: %s', $relative_path )
