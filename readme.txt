@@ -4,7 +4,7 @@ Tags: pages, cli, gutenberg, blocks, developer-tools
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 1.6.0
+Stable tag: 1.7.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -18,6 +18,7 @@ Pages as Code is a one-way file-to-WordPress workflow for developers and coding 
 
 - Write pages as `.html` files with YAML front matter (title, slug, status, template, parent, css, js, meta)
 - Push pages to WordPress with `wp pac push <file>`
+- Pull pages from WordPress with `wp pac pull <slug>` — revision tracking, subfolder targeting, collision protection
 - Validate block markup with `wp pac validate <file>` — structured JSON diagnostic reports
 - SHA-256 content hashing skips unchanged pages automatically
 - Sibling CSS/JS asset resolution with three-tier fallback (front matter > sibling > shared directory)
@@ -46,18 +47,24 @@ Pages as Code requires WP-CLI 2.0 or later.
 
 ```bash
 wp pac push <file> [--format=<format>] [--user=<id>]
+wp pac pull <slug> [--dir=<dir>] [--force] [--revision-suffix] [--format=<format>] [--user=<id>]
 wp pac validate <file> [--strict] [--user=<id>]
 ```
 
 | Command | Description |
 |---------|-------------|
 | `wp pac push <file>` | Push a page file to WordPress |
+| `wp pac pull <slug>` | Pull a WordPress page to a local file |
 | `wp pac validate <file>` | Validate block markup and return a JSON diagnostic report |
 
 | Argument | Description |
 |----------|-------------|
-| `<file>` | Path relative to `wp-content/pages/` |
-| `--format` | `human` (default) or `json` (push only) |
+| `<file>` | Path relative to `wp-content/pages/` (push, validate) |
+| `<slug>` | Page slug to pull (pull) |
+| `--format` | `human` (default) or `json` |
+| `--dir` | Subdirectory to write pulled file into (pull only) |
+| `--force` | Overwrite existing file (pull only) |
+| `--revision-suffix` | Append revision ID to filename, e.g. `about.r123.html` (pull only) |
 | `--strict` | Treat warnings as fatal for exit code (validate only) |
 | `--user` | WordPress user ID with `edit_pages` capability |
 
@@ -90,6 +97,28 @@ The validator checks for:
 - Unknown/unsupported block types (warning, not fatal)
 
 Exit codes: `0` = ok, `1` = fatal issues (or warnings with `--strict`).
+
+= Pull a page from WordPress =
+
+```bash
+# Pull by slug — writes to wp-content/pages/about.html
+wp pac pull about --user=1
+
+# Pull into a subdirectory
+wp pac pull about --dir=drafts/ --user=1
+
+# Pull with revision ID in filename (versioned snapshot)
+wp pac pull about --revision-suffix --user=1
+# Writes about.r456.html — pushable back with slug 'about'
+
+# Force overwrite existing file
+wp pac pull about --force --user=1
+
+# JSON output for scripting
+wp pac pull about --force --format=json --user=1
+```
+
+Pulled files include `pulled_revision` and `pulled_gmt` in front matter for revision tracking. These fields are ignored on push.
 
 = Finding admin users =
 
@@ -134,6 +163,15 @@ Yes. Pages as Code is a CLI-only tool with no admin UI. It requires WP-CLI 2.0 o
 No screenshots. Pages as Code is a CLI-only tool with no admin interface.
 
 == Changelog ==
+
+= 1.7.0 =
+
+* `wp pac pull <slug>` command to extract WordPress pages into `.html` files
+* Revision tracking via `pulled_revision` and `pulled_gmt` front matter fields
+* `--dir`, `--force`, `--revision-suffix` flags for flexible pull workflows
+* `PAC_Serializer` class for reusable YAML + body serialization
+* User-defined meta round-trip via `_pac_meta_keys` tracking on push
+* Revision-suffixed filenames (`about.r123.html`) push back with correct slug
 
 = 1.6.0 =
 
