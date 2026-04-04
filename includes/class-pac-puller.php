@@ -231,13 +231,13 @@ class PAC_Puller {
 		if ( false === $root_real ) {
 			return new WP_Error( 'pac_path_error', 'Managed pages root is not available.' );
 		}
-		if ( false !== $target_real && 0 !== strpos( $target_real . '/', $root_real . '/' ) ) {
+		if ( false !== $target_real && $target_real !== $root_real && 0 !== strpos( $target_real . '/', $root_real . '/' ) ) {
 			return new WP_Error(
 				'pac_path_traversal',
 				sprintf( 'Output path outside managed root: %s', $relative_path )
 			);
 		}
-		if ( false === $target_real && 0 !== strpos( $target_dir, PAC_PAGES_ROOT . '/' ) && PAC_PAGES_ROOT !== $target_dir ) {
+		if ( false === $target_real && PAC_PAGES_ROOT !== $target_dir && 0 !== strpos( $target_dir, PAC_PAGES_ROOT . '/' ) ) {
 			return new WP_Error(
 				'pac_path_traversal',
 				sprintf( 'Output path outside managed root: %s', $relative_path )
