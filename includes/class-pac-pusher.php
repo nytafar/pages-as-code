@@ -150,6 +150,14 @@ class PAC_Pusher {
 		foreach ( $file->meta as $key => $value ) {
 			update_post_meta( $post_id, sanitize_key( $key ), sanitize_text_field( $value ) );
 		}
+
+		// Store meta key list for pull round-trip.
+		if ( ! empty( $file->meta ) ) {
+			$meta_keys = array_map( 'sanitize_key', array_keys( $file->meta ) );
+			update_post_meta( $post_id, '_pac_meta_keys', $meta_keys );
+		} else {
+			delete_post_meta( $post_id, '_pac_meta_keys' );
+		}
 	}
 
 	/**

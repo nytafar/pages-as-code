@@ -109,7 +109,10 @@ class PAC_File {
 		if ( ! empty( $yaml['slug'] ) ) {
 			$file->slug = sanitize_title( (string) $yaml['slug'] );
 		} else {
-			$file->slug = sanitize_title( pathinfo( $relative_path, PATHINFO_FILENAME ) );
+			// Strip .rNNN revision suffix before sanitizing (e.g. about.r123.html → about).
+			$filename   = pathinfo( $relative_path, PATHINFO_FILENAME );
+			$filename   = preg_replace( '/\.r\d+$/', '', $filename );
+			$file->slug = sanitize_title( $filename );
 		}
 
 		if ( empty( $file->slug ) ) {

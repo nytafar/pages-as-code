@@ -137,6 +137,80 @@ class PAC_CLI {
 	}
 
 	/**
+	 * Pull a WordPress page to a local file.
+	 *
+	 * ## OPTIONS
+	 *
+	 * <slug>
+	 * : Page slug to pull.
+	 *
+	 * [--dir=<dir>]
+	 * : Subdirectory under pages root to write the file into.
+	 *
+	 * [--force]
+	 * : Overwrite existing file without prompting.
+	 *
+	 * [--revision-suffix]
+	 * : Append revision ID to filename (e.g. about.r123.html).
+	 *
+	 * [--format=<format>]
+	 * : Output format.
+	 * ---
+	 * default: human
+	 * options:
+	 *   - human
+	 *   - json
+	 * ---
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     wp pac pull about
+	 *     wp pac pull about --dir=drafts/
+	 *     wp pac pull about --revision-suffix
+	 *     wp pac pull about --force --format=json
+	 *
+	 * @when after_wp_load
+	 *
+	 * @param array $args       Positional arguments.
+	 * @param array $assoc_args Associative arguments.
+	 */
+	public function pull( $args, $assoc_args ) {
+		// Capability check.
+		if ( ! current_user_can( 'edit_pages' ) ) {
+			WP_CLI::error( 'You do not have permission to edit pages.' );
+		}
+
+		$slug   = $args[0];
+		$format = WP_CLI\Utils\get_flag_value( $assoc_args, 'format', 'human' );
+
+		$options = array(
+			'dir'             => WP_CLI\Utils\get_flag_value( $assoc_args, 'dir', '' ),
+			'force'           => WP_CLI\Utils\get_flag_value( $assoc_args, 'force', false ),
+			'revision_suffix' => WP_CLI\Utils\get_flag_value( $assoc_args, 'revision-suffix', false ),
+		);
+
+		$result = PAC_Puller::pull( $slug, $options );
+		if ( is_wp_error( $result ) ) {
+			$this->output_error( $result->get_error_message(), $slug, $format );
+			return;
+		}
+
+		if ( 'json' === $format ) {
+			WP_CLI::line( wp_json_encode( $result, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ) );
+			return;
+		}
+
+		WP_CLI::success(
+			sprintf(
+				'Pulled page "%s" to %s (revision %s).',
+				$result['title'],
+				$result['file'],
+				$result['revision']
+			)
+		);
+	}
+
+	/**
 	 * Output a successful result.
 	 *
 	 * @param array  $result Push result.

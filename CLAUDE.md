@@ -11,7 +11,9 @@ pages-as-code.php           Bootstrap, activation hook, WP-CLI registration
 includes/
   class-pac-file.php         File parsing: front matter splitting, YAML parser, slug resolution, asset resolution
   class-pac-pusher.php       Create/update pages, hash comparison, meta writes (incl. asset meta)
-  class-pac-cli.php          WP-CLI commands: push, validate; argument handling, output formatting
+  class-pac-cli.php          WP-CLI commands: push, pull, validate; argument handling, output formatting
+  class-pac-puller.php       Extract pages from WordPress: query, serialize, file write, revision tracking
+  class-pac-serializer.php   YAML front matter + block body serialization (shared by pull, future tools)
   class-pac-validator.php    Block markup validation: parse_blocks() tree walker, per-block rules, JSON reports
   class-pac-assets.php       Frontend + editor CSS/JS enqueue for managed pages
 .claude/skills/pages-as-code/   Skill shipped to users (copied to pages dir on activation)
@@ -58,6 +60,12 @@ wp pac push test-page.html --user=1   # Should report "unchanged"
 # Validate block markup
 wp pac validate test-page.html --user=1   # JSON report, exit 0 if ok
 wp pac validate test-page.html --user=1 --strict  # Warnings also cause exit 1
+
+# Pull a page from WordPress
+wp pac pull about --user=1                # Writes pages/about.html
+wp pac pull about --dir=drafts/ --user=1  # Writes pages/drafts/about.html
+wp pac pull about --revision-suffix --user=1  # Writes pages/about.r123.html
+wp pac pull about --force --user=1        # Overwrites existing file
 
 # Validate skill
 python3 ~/.claude/skills/skill-creator/scripts/quick_validate.py .claude/skills/pages-as-code

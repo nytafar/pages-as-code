@@ -2,6 +2,30 @@
 
 All notable changes to Pages as Code will be documented in this file.
 
+## [1.7.0] - 2026-04-04
+
+### Added
+- `wp pac pull <slug>` WP-CLI command to extract WordPress pages into `.html` files with YAML front matter
+- `PAC_Puller` service class for page extraction, path resolution, and file writing
+- `PAC_Serializer` reusable class for YAML front matter + block body serialization
+- `pulled_revision` and `pulled_gmt` front matter fields for revision tracking
+- `_pac_pulled_revision` and `_pac_pulled_gmt` post meta for server-side drift detection
+- `_pac_meta_keys` post meta on push for user-defined meta round-trip
+- `--dir=<path>` flag to pull into a subdirectory under pages root
+- `--force` flag to overwrite existing files
+- `--revision-suffix` flag to write versioned snapshots (e.g. `about.r123.html`)
+- `--format=json` support matching push command pattern
+- Revision suffix stripping in `PAC_File` slug resolution (`about.r123.html` → slug `about`)
+- File collision protection: refuses to overwrite by default
+- `docs/pull-roadmap.md` with design decisions and future concerns
+
+### Design decisions
+- Pull is a simple CLI building block — workflow logic lives in the agent
+- Revision ID from `wp_get_post_revisions()` used as drift anchor, falls back to `post_modified_gmt`
+- No conflict resolution in v1 — user manages pull → edit → push cycle
+- Content normalization accepted: pulled content reflects WordPress state, not original push
+- PAC_Serializer separated for reuse by future template generation and export tools
+
 ## [1.6.0] - 2026-04-04
 
 ### Added

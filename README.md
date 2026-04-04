@@ -14,14 +14,14 @@ WordPress is a great runtime. But authoring pages inside the block editor is a b
 
 Pages as Code introduces a **deliberate authoring layer**: write page content as `.html` files with front matter, push them into WordPress as real pages. WordPress remains the runtime, the editor, and the source of truth for the live site. The file is the source of truth for the *intended* content at push time.
 
-This is a **one-way, explicit workflow**. No hidden sync. No filesystem watchers. No background jobs. You push when you're ready, and WordPress does the rest.
+This is an **explicit, file-first workflow**. No hidden sync. No filesystem watchers. No background jobs. You push when you're ready, pull when you need the current state, and WordPress does the rest.
 
 ```
 File on disk ──wp pac push──> WordPress page (post_content)
                                     |
                               Block editor <── humans edit normally
                                     |
-                              Revisions <── automatic on update
+                 wp pac pull <──  Revisions <── automatic on update
 ```
 
 ## Why this exists
@@ -155,6 +155,7 @@ Pages as Code is a one-way file-to-WordPress workflow for developers and coding 
 
 - Write pages as `.html` files with YAML front matter (title, slug, status, template, parent, css, js, meta)
 - Push pages to WordPress with `wp pac push <file>`
+- Pull pages from WordPress with `wp pac pull <slug>` — revision tracking, subfolder targeting, collision protection
 - Validate block markup with `wp pac validate <file>` — structured JSON diagnostic reports
 - SHA-256 content hashing skips unchanged pages automatically
 - Sibling CSS/JS asset resolution with three-tier fallback (front matter > sibling > shared directory)
@@ -183,18 +184,24 @@ Pages as Code requires WP-CLI 2.0 or later.
 
 ```bash
 wp pac push <file> [--format=<format>] [--user=<id>]
+wp pac pull <slug> [--dir=<dir>] [--force] [--revision-suffix] [--format=<format>] [--user=<id>]
 wp pac validate <file> [--strict] [--user=<id>]
 ```
 
 | Command | Description |
 |---------|-------------|
 | `wp pac push <file>` | Push a page file to WordPress |
+| `wp pac pull <slug>` | Pull a WordPress page to a local file |
 | `wp pac validate <file>` | Validate block markup and return a JSON diagnostic report |
 
 | Argument | Description |
 |----------|-------------|
-| `<file>` | Path relative to `wp-content/pages/` |
-| `--format` | `human` (default) or `json` (push only) |
+| `<file>` | Path relative to `wp-content/pages/` (push, validate) |
+| `<slug>` | Page slug to pull (pull) |
+| `--format` | `human` (default) or `json` |
+| `--dir` | Subdirectory to write pulled file into (pull only) |
+| `--force` | Overwrite existing file (pull only) |
+| `--revision-suffix` | Append revision ID to filename, e.g. `about.r123.html` (pull only) |
 | `--strict` | Treat warnings as fatal for exit code (validate only) |
 | `--user` | WordPress user ID with `edit_pages` capability |
 
@@ -227,6 +234,28 @@ The validator checks for:
 - Unknown/unsupported block types (warning, not fatal)
 
 Exit codes: `0` = ok, `1` = fatal issues (or warnings with `--strict`).
+
+### Pull a page from WordPress
+
+```bash
+# Pull by slug — writes to wp-content/pages/about.html
+wp pac pull about --user=1
+
+# Pull into a subdirectory
+wp pac pull about --dir=drafts/ --user=1
+
+# Pull with revision ID in filename (versioned snapshot)
+wp pac pull about --revision-suffix --user=1
+# Writes about.r456.html — pushable back with slug 'about'
+
+# Force overwrite existing file
+wp pac pull about --force --user=1
+
+# JSON output for scripting
+wp pac pull about --force --format=json --user=1
+```
+
+Pulled files include `pulled_revision` and `pulled_gmt` in front matter for revision tracking. These fields are ignored on push.
 
 ### Finding admin users
 
@@ -328,7 +357,9 @@ pages-as-code/
   includes/
     class-pac-file.php             File parsing: front matter, body, asset resolution
     class-pac-pusher.php           Create/update logic, hash comparison, asset meta
-    class-pac-cli.php              WP-CLI commands: push, validate
+    class-pac-cli.php              WP-CLI commands: push, pull, validate
+    class-pac-puller.php           Page extraction from WordPress
+    class-pac-serializer.php       YAML front matter + body serialization
     class-pac-validator.php        Block markup validation service
     class-pac-assets.php           Frontend + editor CSS/JS enqueue
   .claude/skills/pages-as-code/    Claude Code skill (copied to pages dir)
@@ -343,6 +374,15 @@ pages-as-code/
 ```
 
 ## Changelog
+
+### 1.7.0
+
+- `wp pac pull <slug>` command to extract WordPress pages into `.html` files
+- Revision tracking via `pulled_revision` and `pulled_gmt` front matter fields
+- `--dir`, `--force`, `--revision-suffix` flags for flexible pull workflows
+- `PAC_Serializer` class for reusable YAML + body serialization
+- User-defined meta round-trip via `_pac_meta_keys` tracking on push
+- Revision-suffixed filenames (`about.r123.html`) push back with correct slug
 
 ### 1.6.0
 
