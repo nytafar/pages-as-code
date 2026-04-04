@@ -2,6 +2,31 @@
 
 All notable changes to Pages as Code will be documented in this file.
 
+## [1.6.0] - 2026-04-04
+
+### Added
+- `wp pac validate <file>` WP-CLI command for block markup validation
+- `PAC_Validator` stateless service class with structured JSON diagnostic reports
+- Grammar validation: bare HTML detection (null_block), empty document check
+- Nesting validation: parent constraints (list-item→list, button→buttons, column→columns) and child type checks
+- Per-block validators for 11 core blocks: paragraph, heading, list, list-item, image, buttons, button, group, columns, column, cover
+- Wrapper element checks (e.g. paragraph needs `<p>`, image needs `<img>`)
+- Wrapper class checks (e.g. image needs `wp-block-image`, group needs `wp-block-group`)
+- Heading level attribute vs HTML tag mismatch detection
+- Unknown/unsupported block warnings for blocks outside the supported set
+- Stable tree-position path notation (e.g. `3/1/0`) for mapping issues to block location
+- `autoFixable` and `suggestedRepair` fields in issue schema for future `--fix` support
+- `--strict` flag to treat warnings as fatal for exit code
+- JSON-only output designed for agent consumption and diagnostic feedback loops
+
+### Design decisions
+- Validator is a standalone service (`PAC_Validator::validate_document()`) decoupled from CLI and push flow
+- Loaded unconditionally (not behind `WP_CLI` guard) so `PAC_Pusher` can call it in future
+- Whitespace-only null blocks from `parse_blocks()` are filtered as parser artifacts, not flagged
+- Unknown blocks are warnings, not fatal — allows third-party blocks to pass through
+- No `--fix` mode in v1; repair hints are report-only
+- Output is always JSON — consumer (agent or human) handles presentation
+
 ## [1.5.0] - 2026-04-03
 
 ### Added

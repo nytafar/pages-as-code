@@ -4,8 +4,8 @@
 
 Every `.html` page file has two parts:
 
-1. YAML front matter between `---` delimiters
-2. Body: Gutenberg block markup
+1. **YAML front matter** between `---` delimiters
+2. **Body**: WordPress Block Editor markup — HTML wrapped in block comments
 
 ```html
 ---
@@ -13,8 +13,12 @@ title: Page Title
 slug: page-slug
 status: draft
 ---
+<!-- wp:heading {"level":1} -->
+<h1 class="wp-block-heading">Page Title</h1>
+<!-- /wp:heading -->
+
 <!-- wp:paragraph -->
-<p>Content.</p>
+<p>Every HTML element must be inside a block comment pair.</p>
 <!-- /wp:paragraph -->
 ```
 
@@ -27,8 +31,8 @@ status: draft
 | `status` | no | `draft` | `post_status` | `draft`, `publish`, `pending`, `private`, `future` |
 | `template` | no | default | `page_template` | Must exist in the active theme. Omit if unsure. |
 | `parent` | no | — | `post_parent` | Slug of parent page. Parent must exist before push. |
-| `css` | no | auto-resolved | `_pac_css` | Explicit CSS asset path relative to `wp-content/`. Overrides sibling resolution. |
-| `js` | no | auto-resolved | `_pac_js` | Explicit JS asset path relative to `wp-content/`. Overrides sibling resolution. |
+| `css` | no | — | enqueued stylesheet | Path relative to `wp-content/`. Enqueued only on this page. e.g., `themes/myrvann/css/about.css` |
+| `js` | no | — | enqueued script | Path relative to `wp-content/`. Enqueued only on this page. e.g., `themes/myrvann/js/about.js` |
 | `meta` | no | — | post meta | One-level key-value map. Written as-is, not namespaced. |
 
 ## Slug resolution
@@ -50,75 +54,96 @@ wp-content/pages/
     product-b.html
 ```
 
-## Sibling CSS/JS assets
+## Body rules — Block Editor markup
 
-Each page file can have optional matching CSS and JS files. These are resolved automatically during push.
+WordPress stores page content as **blocks**. Every HTML element in the body must be wrapped in block comment delimiters. Bare HTML outside block comments is silently discarded.
 
-### Resolution order
+### The block comment pattern
 
-For a page file like `about.html`:
-
-**CSS:**
-1. Front matter `css:` path (relative to `wp-content/`)
-2. Sibling file: `about.css` in the same directory
-3. Shared directory: `pages/css/about.css`
-
-**JS:**
-1. Front matter `js:` path (relative to `wp-content/`)
-2. Sibling file: `about.js` in the same directory
-3. Shared directory: `pages/js/about.js`
-
-### File layout examples
-
-Sibling pattern (recommended):
 ```
-wp-content/pages/
-  about.html
-  about.css
-  about.js          (only if interaction needed)
-  landing/
-    product-a.html
-    product-a.css
+<!-- wp:blockname {"optional":"attributes"} -->
+<HTML content>
+<!-- /wp:blockname -->
 ```
 
-Shared directory pattern:
+- Opening comment: `<!-- wp:blockname -->` or `<!-- wp:blockname {"key":"value"} -->`
+- Closing comment: `<!-- /wp:blockname -->`
+- Self-closing (dynamic blocks): `<!-- wp:blockname {"key":"value"} /-->`
+
+### DO — correct block markup
+
+```html
+<!-- wp:paragraph -->
+<p>A paragraph of text.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":2} -->
+<h2 class="wp-block-heading">Section Title</h2>
+<!-- /wp:heading -->
+
+<!-- wp:image {"id":42,"sizeSlug":"full","align":"full"} -->
+<figure class="wp-block-image alignfull size-full">
+<img src="/wp-content/uploads/photo.jpg" alt="Description" class="wp-image-42"/>
+</figure>
+<!-- /wp:image -->
+
+<!-- wp:group {"align":"full","className":"my-section"} -->
+<div class="wp-block-group alignfull my-section">
+  <!-- wp:paragraph -->
+  <p>Nested content inside a group.</p>
+  <!-- /wp:paragraph -->
+</div>
+<!-- /wp:group -->
+
+<!-- wp:html -->
+<div class="custom-widget" data-count="5">Custom HTML that has no core block.</div>
+<!-- /wp:html -->
 ```
-wp-content/pages/
-  about.html
-  css/
-    about.css
-  js/
-    about.js
+
+### DON'T — bare HTML (will be silently lost)
+
+```html
+<!-- WRONG: bare paragraph -->
+<p>This text will be stripped by WordPress.</p>
+
+<!-- WRONG: bare div with content -->
+<div class="hero">
+  <h1>This heading will be lost.</h1>
+</div>
+
+<!-- WRONG: bare image -->
+<img src="/photo.jpg" alt="Gone"/>
+
+<!-- WRONG: bare list -->
+<ul>
+  <li>Lost item</li>
+</ul>
 ```
 
-Front matter override:
-```yaml
----
-title: About Us
-css: themes/mytheme/custom/about-override.css
-js: pages/js/about.js
----
-```
+### Key rules
 
-### Safety rules
-
-- All resolved asset paths must be under `wp-content/`
-- Paths outside `wp-content/` are rejected
-- If a front matter path points to a non-existent file, no asset is stored
-- If no asset is found via any resolution step, the meta field is cleared
-
-### Enqueue behavior
-
-- **CSS** is loaded on the frontend and in the block editor (page-specific only)
-- **JS** is loaded on the frontend only (not in the block editor)
-- Assets use `filemtime` for cache-busting version strings
-- Handles are derived from the post ID: `pac-page-{id}`, `pac-page-{id}-js`
+1. **Every** HTML element needs a block wrapper — paragraphs, headings, images, divs, lists, separators, everything
+2. Nest inner blocks inside the parent block's HTML element (e.g., paragraphs inside a group's `<div>`)
+3. Every opening `<!-- wp:name -->` must have a matching `<!-- /wp:name -->`
+4. Use `<!-- wp:html -->` as a catch-all for custom HTML that doesn't fit a core block
+5. Only use block names from the [block editor reference](../generate/block-editor.md) — never invent names
 
 ## Naming conventions
 
 - Use lowercase slugs with hyphens: `about-us.html`, not `About_Us.html`
 - Subdirectory names should group related pages: `landing/`, `legal/`, `company/`
 - One page per file. Slug is the primary key — two files with the same slug will overwrite each other
+
+## Project context
+
+Before generating any page, check for context files in `.claude/`:
+
+- **`.claude/brand.md`** — brand identity, values, writing voice, tone, vocabulary
+- **`.claude/theme.md`** — theme design system: custom properties, class naming, spacing scale, templates
+
+If found, **read them first**. `brand.md` steers how content sounds; `theme.md` steers how pages are styled. Together they ensure output looks and reads native to the site.
+
+If these files are empty or missing, study existing page files in `wp-content/pages/` for class prefixes, section patterns, and styling conventions already in use.
 
 ## Plugin tracking meta
 
@@ -130,7 +155,3 @@ Written automatically on every successful push:
 | `_pac_source` | Relative file path (e.g., `landing/product-a.html`) |
 | `_pac_hash` | SHA-256 hash of file contents |
 | `_pac_last_push_gmt` | ISO 8601 UTC timestamp |
-| `_pac_css` | Absolute path to resolved CSS asset (cleared if none) |
-| `_pac_js` | Absolute path to resolved JS asset (cleared if none) |
-| `_pac_css_hash` | SHA-256 hash of CSS file (cleared if none) |
-| `_pac_js_hash` | SHA-256 hash of JS file (cleared if none) |

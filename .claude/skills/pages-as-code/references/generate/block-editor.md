@@ -50,10 +50,50 @@ Inner blocks go inside the parent's saved HTML. Always match open/close order.
 
 ### Rules for AI agents
 
-- Never invent block names — use only canonical names from the table below
-- Always output valid HTML fragments inside saved HTML
-- If the block is dynamic in the table, use self-closing form
-- Omit `core/` in comments: `core/paragraph` → `wp:paragraph`
+**CRITICAL**: Bare HTML outside block comments is silently discarded by WordPress. Every HTML element you generate must be inside a block comment pair.
+
+1. **No bare HTML** — every `<p>`, `<h2>`, `<div>`, `<img>`, `<ul>`, `<hr>`, etc. must be wrapped in its corresponding `<!-- wp:blockname -->…<!-- /wp:blockname -->` pair. If no core block fits, use `<!-- wp:html -->…<!-- /wp:html -->`.
+2. **Never invent block names** — use only canonical names from the table below.
+3. **Use self-closing form for dynamic blocks** — if the Type column says "dynamic", use `<!-- wp:blockname /-->` with no HTML body.
+4. **Omit `core/` in comments** — `core/paragraph` → `wp:paragraph`.
+5. **Match every opening comment with a closing comment** — mismatched pairs corrupt the block structure.
+6. **Nest inner blocks inside the parent's HTML element** — e.g., `<!-- wp:paragraph -->` goes inside the `<div>` of a `<!-- wp:group -->`, not outside it.
+7. **Always output valid HTML inside blocks** — the HTML between block comments must be well-formed and match what WordPress expects for that block type (see examples in the table).
+
+### When to use `wp:html` for custom layouts
+
+Core blocks come with their own wrapper HTML (`wp-block-group`, `wp-block-columns`, etc.). For layouts where this extra markup gets in the way — custom grids, card decks, decorative elements, animated sections — use `<!-- wp:html -->` instead and scope everything with a class prefix.
+
+**Always wrap `wp:html` inside a parent layout block** (`wp:group`, `wp:column`, `wp:cover`) with the correct `align` and `className` attributes. This ensures the custom HTML inherits the theme's layout flow — max-width, alignment, spacing — from the parent block's standard CSS.
+
+```html
+<!-- wp:group {"align":"full","className":"testimonial-strip"} -->
+<div class="wp-block-group alignfull testimonial-strip">
+
+<!-- wp:html -->
+<div class="ts-track">
+  <blockquote class="ts-card">
+    <p>Quote text.</p>
+    <cite>— Author</cite>
+  </blockquote>
+  <blockquote class="ts-card">
+    <p>Quote text.</p>
+    <cite>— Author</cite>
+  </blockquote>
+</div>
+<!-- /wp:html -->
+
+</div>
+<!-- /wp:group -->
+```
+
+Use this pattern when:
+- A core block would force unwanted wrapper elements or class names
+- You need a specific DOM structure for CSS grid/flexbox layouts
+- The design requires decorative or interactive HTML (animations, data attributes)
+- Multiple related elements should stay together as one unit
+
+Do **not** use `wp:html` as a lazy shortcut — prefer core blocks when they produce the right structure. Reserve `wp:html` for cases where core blocks genuinely cannot express the layout.
 
 ## Core block reference table
 

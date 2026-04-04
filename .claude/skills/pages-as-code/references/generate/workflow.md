@@ -12,7 +12,26 @@ Decide title, slug, status, and parent (if any). Check existing pages to avoid s
 wp post list --post_type=page --fields=ID,post_name,post_status
 ```
 
-### 2. Write front matter
+### 2. Read project context
+
+Check for context files in `.claude/` that steer content and styling:
+
+```bash
+# Brand identity and writing voice
+cat .claude/brand.md 2>/dev/null
+
+# Theme design system — custom properties, class conventions, layout patterns
+cat .claude/theme.md 2>/dev/null
+```
+
+- **`brand.md`** — brand identity, tone, vocabulary, example passages. Read this to write content that sounds like the brand, not like a generic AI.
+- **`theme.md`** — design tokens, class naming, spacing scale, templates. Read this to write CSS that harmonizes with the theme instead of fighting it.
+
+If neither exists, study existing page files in `wp-content/pages/` for established patterns.
+
+For CSS principles and core block behavior, also read [styling.md](styling.md) and [block-css.md](block-css.md).
+
+### 3. Write front matter
 
 Start with the required `title`. Add optional fields only when needed:
 
@@ -26,11 +45,13 @@ status: publish
 
 Only add `template` if you know the exact slug exists in the active theme. Only add `parent` if the parent page is already in WordPress.
 
-### 3. Write block markup body
+### 4. Write block markup body
 
-Use Gutenberg block comment syntax. For the full block reference table, read [block-editor.md](block-editor.md).
+**Every HTML element must be wrapped in WordPress block comments.** Bare HTML outside block comments is silently discarded by WordPress. This is the most common mistake — never output a `<p>`, `<h2>`, `<div>`, `<img>`, or any other element without its block comment wrapper.
 
-Core pattern:
+For the full block reference table (50+ blocks with examples), read [block-editor.md](block-editor.md).
+
+Core pattern — every block follows this structure:
 ```html
 <!-- wp:blockname {"attr":"value"} -->
 <valid HTML>
@@ -38,12 +59,27 @@ Core pattern:
 ```
 
 Build from the outside in:
-1. Start with the outermost container (group, cover, columns)
-2. Add inner blocks nested inside the parent's HTML
-3. Match every opening comment with a closing comment
-4. Use `<!-- wp:html -->` for any custom HTML that doesn't fit a core block
+1. Start with the outermost container (`wp:group`, `wp:cover`, `wp:columns`)
+2. Add inner blocks nested **inside** the parent's HTML element
+3. Match every opening `<!-- wp:name -->` with a closing `<!-- /wp:name -->`
+4. Use `<!-- wp:html -->…<!-- /wp:html -->` for any custom HTML that doesn't map to a core block
+5. Never output bare HTML — if you're unsure which block to use, wrap it in `wp:html`
 
-### 4. Validate
+### 5. Write page CSS (if needed)
+
+If the page uses custom layouts via `wp:html` or needs visual styling beyond what core blocks provide, create a CSS file and reference it in front matter:
+
+```yaml
+css: themes/<theme>/css/my-page.css
+```
+
+Follow the principles in [styling.md](styling.md):
+- Don't wrap selectors in an outer page class — the file is already page-scoped by the enqueue
+- Scope to block `className` values and structural selectors within `wp:html` content
+- Use theme custom properties from `theme.md` — never hard-code colors, spacing, or fonts the theme provides as tokens
+- Respect core block CSS — read [block-css.md](block-css.md) to predict the cascade
+
+### 6. Validate
 
 Run the validation script before pushing:
 
@@ -57,63 +93,16 @@ Or check manually:
 - No invented block names
 - HTML fragments are valid
 
-### 5. Generate CSS (optional)
-
-Create a matching `.css` file when the page needs styling beyond what the active theme provides.
-
-**When to create CSS:**
-- Page-specific section treatments, animations, or layout refinements
-- Custom wrappers or visual identity elements
-- Styles that only apply to this page, not globally
-
-**When NOT to create CSS:**
-- The theme already provides the typography, spacing, colors, and button styles you need
-- You're resetting or fighting global theme defaults — prefer additive styling
-- Generic block styling that `theme.json` or the active theme handles
-
-**CSS philosophy:**
-- Start from the theme's existing baseline — analyze it first if needed
-- Use page-scoped selectors (e.g., `.page-about .hero-section`)
-- Focus on inside-block content, not editor chrome or global resets
-- Prefer additive styling over replacement styling
-- Don't reinvent typography, spacing, buttons, forms, or block defaults
-
-**How to create:**
-```bash
-# Sibling pattern — same directory, same basename
-wp-content/pages/about.html
-wp-content/pages/about.css
-```
-
-The CSS will be auto-resolved during push and loaded on both the frontend and block editor.
-
-### 6. Generate JS (only when needed)
-
-Create a matching `.js` file only when the page requires client-side interaction.
-
-**When JS is justified:**
-- Interactive UI elements (sliders, tabs, accordions beyond what blocks provide)
-- Form validation or dynamic form behavior
-- Animation triggered by scroll or user interaction
-- Third-party widget initialization
-
-**When NOT to create JS:**
-- Block editor already provides the interaction (e.g., accordion block, tabs block)
-- The theme or a plugin already handles it globally
-
-JS is loaded on the **frontend only** (not in the block editor). Keep scripts standalone and page-scoped.
-
 ### 7. Save
 
-Save to `wp-content/pages/<slug>.html` (and optional `<slug>.css` / `<slug>.js`).
+Save to `wp-content/pages/<slug>.html` (or in a subdirectory for organization).
 
-The files have no effect on WordPress until pushed. Proceed to publish workflow.
+The file has no effect on WordPress until pushed. Proceed to publish workflow.
 
 ## Tips
 
-- Use `<!-- wp:html -->` blocks for complex custom markup rather than trying to force it into core blocks
+- **Custom layouts**: When core blocks introduce too much wrapper HTML or can't express the design, use `<!-- wp:html -->` with scoped classes — but always wrap it inside a parent layout block (`wp:group`, `wp:column`, `wp:cover`) with appropriate `align`/`className` so the theme's layout flow (max-width, spacing, alignment) still applies
 - Keep block nesting shallow when possible — deep nesting is harder to debug
 - The `wp:group` block with `{"align":"full","className":"your-class"}` is the workhorse for section-level layout
 - Use the page shell template as a starting point: `templates/page-shell.html`
-- Prefer a sibling `.css` file over inline `<style>` tags — it's better for caching, diffs, and editor parity
-- Analyze the active theme before generating CSS to avoid duplicating existing styles
+- Always check `.claude/theme.md` and `.claude/brand.md` before generating — they prevent generic output

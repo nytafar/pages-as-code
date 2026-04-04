@@ -12,24 +12,34 @@ One-way file-to-WordPress workflow. Create `.html` page files with front matter 
 Before either workflow, read [references/shared/page-standards.md](references/shared/page-standards.md) for file format, front matter fields, and naming rules.
 
 Key principles:
+- **Every HTML element in the body must be wrapped in block comments** — bare HTML is silently discarded by WordPress
 - Creating a file and publishing it are **separate actions**
 - `title` is the only required front matter field; slug falls back to filename
 - `template` must exist in the active theme — omit if unsure
 - Push parents before children
 - Re-pushing unchanged files is a no-op (SHA-256 hash check)
 - `--user=<admin_id>` is required in most hosting environments
-- Optional sibling `.css` and `.js` files are auto-resolved during push
-- CSS loads on frontend + block editor; JS loads on frontend only
 
 ## Route by intent
 
 ### Generate a page
 
-Read [references/generate/workflow.md](references/generate/workflow.md) for the step-by-step creation process.
+Read [references/generate/workflow.md](references/generate/workflow.md) for the step-by-step creation process (7 steps, including reading context and writing CSS).
 
 For block editor syntax and the complete core block table (50+ blocks), read [references/generate/block-editor.md](references/generate/block-editor.md).
 
+For CSS principles — scoping, cascade, core block behavior — read [references/generate/styling.md](references/generate/styling.md) and [references/generate/block-css.md](references/generate/block-css.md).
+
 Use the starter template at [templates/page-shell.html](templates/page-shell.html) as a starting point.
+
+### Project context
+
+Before generating, check for context files in `.claude/`:
+
+- **`.claude/brand.md`** — brand identity and writing voice
+- **`.claude/theme.md`** — theme design system, custom properties, layout patterns
+
+These steer content and styling so output looks and sounds native to the site.
 
 ### Publish a page
 
@@ -41,56 +51,13 @@ For error diagnosis and hosting-specific commands, read [references/publish/trou
 
 Read shared standards first, then generate workflow, then publish workflow in sequence.
 
-## CSS and JS assets
-
-Pages support optional sibling CSS and JS files that are auto-resolved during push.
-
-### Convention
-
-```
-wp-content/pages/
-  about.html          # required: Gutenberg block markup
-  about.css           # optional: page-specific styles
-  about.js            # optional: page-specific scripts (only when interaction needed)
-```
-
-### Resolution order (CSS example)
-
-1. Front matter `css:` path (relative to `wp-content/`)
-2. Sibling: `about.css` in the same directory as `about.html`
-3. Shared: `pages/css/about.css`
-
-Same for JS with `js:` front matter field.
-
-### Style philosophy
-
-- **Start from the theme.** Analyze the active theme's typography, spacing, colors, and block defaults before writing CSS.
-- **Additive, not replacement.** Don't reset global styles. Add page-specific treatments.
-- **Page-scoped selectors.** Use class names on your page sections, not global element selectors.
-- **Block-editor friendly.** CSS that styles inside-block content works in both frontend and editor.
-- **No JS by default.** Only create JS when the page requires client-side interaction that blocks/theme don't provide.
-
-### Editor behavior
-
-- CSS loads in the block editor for styling parity with the frontend
-- JS is **frontend-only** — editor scripts often break in the editor iframe
-- The editor will reflect your page-specific CSS automatically
-
-### Future: Git workflow
-
-When working with page triplets (`about.html` + `about.css` + `about.js`):
-- Commit all related files together
-- The push command resolves assets from disk, so all files must exist before push
-- Treat the `.html` as the primary file; `.css` and `.js` are supporting assets
-
 ## Quick reference
 
 ```bash
-# Create files
+# Create file
 wp-content/pages/about.html
-wp-content/pages/about.css    # optional
 
-# Push (resolves assets automatically)
+# Push
 wp pac push about.html --user=1
 
 # Verify

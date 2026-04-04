@@ -3,7 +3,7 @@
  * Plugin Name: Pages as Code
  * Plugin URI:  https://github.com/nytafar/pages-as-code
  * Description: File-backed Gutenberg pages for WordPress. Author page content as .html files with front matter and block markup, push to WordPress via WP-CLI.
- * Version:     1.5.0
+ * Version:     1.6.0
  * Author:      Lasse Jellum
  * Author URI:  https://jellum.net
  * License:     GPL-2.0-or-later
@@ -17,13 +17,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'PAC_VERSION', '1.5.0' );
+define( 'PAC_VERSION', '1.6.0' );
 define( 'PAC_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'PAC_PAGES_ROOT', WP_CONTENT_DIR . '/pages' );
 
 require_once PAC_PLUGIN_DIR . 'includes/class-pac-file.php';
 require_once PAC_PLUGIN_DIR . 'includes/class-pac-pusher.php';
 require_once PAC_PLUGIN_DIR . 'includes/class-pac-assets.php';
+require_once PAC_PLUGIN_DIR . 'includes/class-pac-validator.php';
 
 // Initialize frontend/editor asset enqueue.
 PAC_Assets::init();
@@ -43,16 +44,18 @@ function pac_activate() {
 	}
 
 	// Copy agent instructions to pages root (separate from plugin dev CLAUDE.md).
+	// Skip if already present — deployed sites may have customized versions.
 	$source = PAC_PLUGIN_DIR . 'assets/pages-CLAUDE.md';
 	$dest   = PAC_PAGES_ROOT . '/CLAUDE.md';
-	if ( file_exists( $source ) ) {
+	if ( file_exists( $source ) && ! file_exists( $dest ) ) {
 		copy( $source, $dest );
 	}
 
 	// Copy .claude/skills/ tree to pages root for Claude Code skill discovery.
+	// Skip if the skills directory already exists — avoid overwriting customizations.
 	$skills_source = PAC_PLUGIN_DIR . '.claude/skills';
 	$skills_dest   = PAC_PAGES_ROOT . '/.claude/skills';
-	if ( is_dir( $skills_source ) ) {
+	if ( is_dir( $skills_source ) && ! is_dir( $skills_dest ) ) {
 		pac_copy_directory( $skills_source, $skills_dest );
 	}
 }

@@ -3,12 +3,80 @@ title: Page Title
 slug: page-slug
 status: draft
 ---
-<!-- wp:group {"align":"full","className":"page-section","layout":{"type":"constrained"}} -->
-<div class="wp-block-group alignfull page-section"><!-- wp:heading {"level":1} -->
+<!-- wp:cover {"dimRatio":50,"minHeight":80,"minHeightUnit":"vh","align":"full","className":"hero-section"} -->
+<div class="wp-block-cover alignfull hero-section" style="min-height:80vh">
+<span aria-hidden="true" class="wp-block-cover__background has-background-dim-50 has-background-dim"></span>
+<div class="wp-block-cover__inner-container">
+
+<!-- wp:heading {"level":1} -->
 <h1 class="wp-block-heading">Page Title</h1>
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
-<p>Page content goes here.</p>
-<!-- /wp:paragraph --></div>
+<p>Subtitle or intro text.</p>
+<!-- /wp:paragraph -->
+
+</div>
+</div>
+<!-- /wp:cover -->
+
+<!-- wp:group {"align":"full","className":"content-section"} -->
+<div class="wp-block-group alignfull content-section">
+
+<!-- wp:heading -->
+<h2 class="wp-block-heading">Section Heading</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>Body text goes here. Every paragraph needs its own block wrapper.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Second paragraph — also wrapped in its own block comments.</p>
+<!-- /wp:paragraph -->
+
+</div>
+<!-- /wp:group -->
+
+<!-- wp:image {"id":0,"sizeSlug":"full","align":"full"} -->
+<figure class="wp-block-image alignfull size-full">
+<img src="/wp-content/uploads/placeholder.jpg" alt="Description" class="wp-image-0"/>
+</figure>
+<!-- /wp:image -->
+
+<!-- wp:group {"align":"full","className":"custom-section"} -->
+<div class="wp-block-group alignfull custom-section">
+
+<!-- wp:html -->
+<div class="cs-grid">
+  <div class="cs-card">
+    <h3>Card Title</h3>
+    <p>Custom layout via wp:html — scoped with cs- prefix, wrapped in a group for theme layout flow.</p>
+  </div>
+  <div class="cs-card">
+    <h3>Card Title</h3>
+    <p>Use this pattern when core blocks would introduce unwanted wrapper HTML.</p>
+  </div>
+</div>
+<!-- /wp:html -->
+
+</div>
+<!-- /wp:group -->
+
+<!-- wp:group {"align":"full","className":"cta-section"} -->
+<div class="wp-block-group alignfull cta-section">
+
+<!-- wp:paragraph -->
+<p>Call to action text.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:buttons -->
+<div class="wp-block-buttons">
+<!-- wp:button -->
+<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="/target/">Button Text</a></div>
+<!-- /wp:button -->
+</div>
+<!-- /wp:buttons -->
+
+</div>
 <!-- /wp:group -->
