@@ -203,6 +203,9 @@ class PAC_File {
 		if ( false === $real ) {
 			return false;
 		}
+		if ( ! is_file( $real ) || ! is_readable( $real ) ) {
+			return false;
+		}
 		$content_real = realpath( WP_CONTENT_DIR );
 		if ( false === $content_real ) {
 			return false;
@@ -229,7 +232,7 @@ class PAC_File {
 		if ( false === $real_path ) {
 			$dir_real = realpath( dirname( $full_path ) );
 			$root_real = realpath( PAC_PAGES_ROOT );
-			if ( false === $dir_real || 0 !== strpos( $dir_real . '/', $root_real . '/' ) ) {
+			if ( false === $root_real || false === $dir_real || ( $dir_real !== $root_real && 0 !== strpos( $dir_real . '/', $root_real . '/' ) ) ) {
 				return new WP_Error(
 					'pac_path_traversal',
 					sprintf( 'Path outside managed root: %s', $relative_path )
@@ -238,7 +241,11 @@ class PAC_File {
 			return $full_path;
 		}
 
-		if ( 0 !== strpos( $real_path, realpath( PAC_PAGES_ROOT ) ) ) {
+		$root_real = realpath( PAC_PAGES_ROOT );
+		if (
+			false === $root_real ||
+			( $real_path !== $root_real && 0 !== strpos( $real_path, $root_real . '/' ) )
+		) {
 			return new WP_Error(
 				'pac_path_traversal',
 				sprintf( 'Path outside managed root: %s', $relative_path )
