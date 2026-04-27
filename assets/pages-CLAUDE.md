@@ -87,6 +87,37 @@ status: publish
 
 For the complete file format spec, front matter fields, and body rules, read `.claude/skills/pages-as-code/references/shared/page-standards.md`.
 
+## Custom post types
+
+By default a file is a WordPress `page`. The site can register additional post types with the `pac_post_types` filter (commonly in the active theme). Once registered, you author them just like a page — block comments wrapping HTML — and declare the type in front matter:
+
+```html
+---
+title: Cacao Ceremonial 200g
+slug: cacao-200g
+type: product
+status: publish
+---
+<!-- wp:heading -->
+<h2 class="wp-block-heading">Hand-pressed cacao</h2>
+<!-- /wp:heading -->
+```
+
+You can also override the type at push time with the `--post-type` flag:
+
+```bash
+wp pac push some/path/cacao.html --post-type=product
+```
+
+Pull a non-page post with `<type>/<slug>` shorthand or the explicit flag:
+
+```bash
+wp pac pull product/cacao-200g
+wp pac pull cacao-200g --post-type=product
+```
+
+This pass roundtrips title / slug / status / excerpt / `post_content` only — taxonomies, prices, SKUs, attributes and similar product-specific fields stay in the WP admin. Check the site's theme for which post types are registered.
+
 ## Skill
 
 Invoke `/pages-as-code` for the full workflow. It loads detailed references by intent:

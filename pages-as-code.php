@@ -3,7 +3,7 @@
  * Plugin Name: Pages as Code
  * Plugin URI:  https://github.com/nytafar/pages-as-code
  * Description: File-backed Gutenberg pages for WordPress. Author page content as .html files with front matter and block markup, push to WordPress via WP-CLI.
- * Version:     1.7.0
+ * Version:     1.8.0
  * Author:      Lasse Jellum
  * Author URI:  https://jellum.net
  * License:     GPL-2.0-or-later
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'PAC_VERSION', '1.7.0' );
+define( 'PAC_VERSION', '1.8.0' );
 define( 'PAC_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'PAC_PAGES_ROOT_DEFAULT', WP_CONTENT_DIR . '/pages' );
 
@@ -42,6 +42,134 @@ PAC_Assets::init();
  */
 function pac_pages_root() {
 	return rtrim( (string) apply_filters( 'pac_pages_root', PAC_PAGES_ROOT_DEFAULT ), '/' );
+}
+
+/**
+ * Get the registry of post types managed by pac.
+ *
+ * Themes and plugins extend the registry with the `pac_post_types` filter.
+ * The filter receives an associative array keyed by post-type slug; each
+ * value is an optional config array with these keys:
+ *
+ *  - dir        (string) Default subdirectory under the pages root for
+ *               `wp pac pull <type>/<slug>`. Falls back to the post-type
+ *               slug when omitted.
+ *  - capability (string) Capability required to push/pull this post type.
+ *               Falls back to the post-type object's `cap->edit_posts`
+ *               (e.g. `edit_pages` for `page`, `edit_posts` for `product`).
+ *
+ * `page` is always present — the filter cannot remove it.
+ *
+ * Example:
+ *
+ *     add_filter( 'pac_post_types', function ( $types ) {
+ *         $types['product']        = array(
+ *             'dir'        => 'products',
+ *             'capability' => 'manage_woocommerce',
+ *         );
+ *         $types['attribute_page'] = array();
+ *         return $types;
+ *     } );
+ *
+ * @return array<string,array> Map of post_type => config array.
+ */
+function pac_post_types() {
+	$types = apply_filters( 'pac_post_types', array( 'page' => array() ) );
+
+	if ( ! is_array( $types ) ) {
+		$types = array();
+	}
+
+	// Guarantee `page` is always present and config is an array.
+	if ( ! isset( $types['page'] ) || ! is_array( $types['page'] ) ) {
+		$types['page'] = array();
+	}
+
+	foreach ( $types as $slug => $config ) {
+		if ( ! is_array( $config ) ) {
+			$types[ $slug ] = array();
+		}
+	}
+
+	return $types;
+}
+
+/**
+ * Get the merged config for a single registered post type.
+ *
+ * @param string $post_type Post-type slug.
+ * @return array|null Config array (possibly empty), or null if not registered.
+ */
+function pac_post_type_config( $post_type ) {
+	$types = pac_post_types();
+	return isset( $types[ $post_type ] ) ? $types[ $post_type ] : null;
+}
+
+/**
+ * Resolve the post type for a push/pull operation.
+ *
+ * Resolution order: explicit CLI flag > front-matter `type:` > 'page'.
+ *
+ * @param PAC_File|string|null $file_or_type PAC_File object, post_type string,
+ *                                           or null when only the flag matters.
+ * @param string|null          $cli_flag     Value of the --post-type CLI flag.
+ * @return string|WP_Error Resolved post-type slug, or error if not registered.
+ */
+function pac_resolve_post_type( $file_or_type = null, $cli_flag = null ) {
+	$post_type = 'page';
+
+	if ( $file_or_type instanceof PAC_File ) {
+		if ( ! empty( $file_or_type->post_type ) ) {
+			$post_type = $file_or_type->post_type;
+		}
+	} elseif ( is_string( $file_or_type ) && '' !== $file_or_type ) {
+		$post_type = $file_or_type;
+	}
+
+	if ( is_string( $cli_flag ) && '' !== $cli_flag ) {
+		$post_type = $cli_flag;
+	}
+
+	$post_type = sanitize_key( $post_type );
+
+	$types = pac_post_types();
+	if ( ! isset( $types[ $post_type ] ) ) {
+		return new WP_Error(
+			'pac_unregistered_post_type',
+			sprintf(
+				'Post type "%s" is not registered with pac. Register it via the pac_post_types filter.',
+				$post_type
+			)
+		);
+	}
+
+	return $post_type;
+}
+
+/**
+ * Get the capability required to push/pull a given post type.
+ *
+ * Resolution order:
+ *   1. `capability` from the per-type config (set via pac_post_types filter)
+ *   2. The post-type object's `cap->edit_posts` (e.g. `edit_pages` for page)
+ *   3. `edit_posts` as a final fallback
+ *
+ * @param string $post_type Post-type slug.
+ * @return string Capability slug.
+ */
+function pac_post_type_capability( $post_type ) {
+	$config = pac_post_type_config( $post_type );
+
+	if ( is_array( $config ) && ! empty( $config['capability'] ) ) {
+		return (string) $config['capability'];
+	}
+
+	$object = get_post_type_object( $post_type );
+	if ( $object && ! empty( $object->cap->edit_posts ) ) {
+		return (string) $object->cap->edit_posts;
+	}
+
+	return 'edit_posts';
 }
 
 /**

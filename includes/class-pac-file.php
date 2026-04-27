@@ -14,6 +14,9 @@ class PAC_File {
 	/** @var string Resolved slug. */
 	public $slug;
 
+	/** @var string Post type slug (defaults to 'page'). */
+	public $post_type = 'page';
+
 	/** @var string Page title. */
 	public $title;
 
@@ -122,6 +125,21 @@ class PAC_File {
 		// Optional fields.
 		if ( ! empty( $yaml['status'] ) ) {
 			$file->status = sanitize_key( (string) $yaml['status'] );
+		}
+		if ( ! empty( $yaml['type'] ) ) {
+			$post_type = sanitize_key( (string) $yaml['type'] );
+			$types     = pac_post_types();
+			if ( ! isset( $types[ $post_type ] ) ) {
+				return new WP_Error(
+					'pac_unregistered_post_type',
+					sprintf(
+						'Front matter parse error in %s: post type "%s" is not registered. Register it via the pac_post_types filter.',
+						$relative_path,
+						$post_type
+					)
+				);
+			}
+			$file->post_type = $post_type;
 		}
 		if ( ! empty( $yaml['template'] ) ) {
 			$file->template = (string) $yaml['template'];

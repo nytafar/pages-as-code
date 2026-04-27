@@ -1,6 +1,6 @@
 <?php
 /**
- * PAC_Pusher — Create or update WordPress pages from parsed PAC_File objects.
+ * PAC_Pusher — Create or update WordPress posts from parsed PAC_File objects.
  *
  * @package Pages_as_Code
  */
@@ -14,48 +14,51 @@ class PAC_Pusher {
 	/**
 	 * Push a parsed file to WordPress.
 	 *
-	 * @param PAC_File $file Parsed page file.
-	 * @return array|WP_Error Result array with keys: status, id, slug, title, file.
+	 * @param PAC_File $file Parsed file.
+	 * @return array|WP_Error Result array with keys: status, id, slug, title, file, post_type.
 	 */
 	public static function push( PAC_File $file ) {
-		// Resolve parent if specified.
+		// Resolve parent if specified (looked up within the same post type).
 		$parent_id = 0;
 		if ( ! empty( $file->parent ) ) {
-			$parent_id = self::resolve_parent( $file->parent );
+			$parent_id = self::resolve_parent( $file->parent, $file->post_type );
 			if ( is_wp_error( $parent_id ) ) {
 				return $parent_id;
 			}
 		}
 
-		// Look up existing page by slug.
-		$existing = self::find_page_by_slug( $file->slug );
+		// Look up existing post by slug within the file's post type.
+		$existing = self::find_post_by_slug( $file->slug, $file->post_type );
 
 		if ( $existing ) {
-			return self::update_page( $existing, $file, $parent_id );
+			return self::update_post( $existing, $file, $parent_id );
 		}
 
-		return self::create_page( $file, $parent_id );
+		return self::create_post( $file, $parent_id );
 	}
 
 	/**
-	 * Create a new page.
+	 * Create a new post.
 	 *
 	 * @param PAC_File $file      Parsed file.
-	 * @param int      $parent_id Parent page ID.
+	 * @param int      $parent_id Parent post ID (page hierarchy only).
 	 * @return array|WP_Error
 	 */
-	private static function create_page( PAC_File $file, $parent_id ) {
+	private static function create_post( PAC_File $file, $parent_id ) {
 		$post_data = array(
-			'post_type'    => 'page',
+			'post_type'    => $file->post_type,
 			'post_title'   => $file->title,
 			'post_name'    => $file->slug,
 			'post_content' => $file->body,
 			'post_status'  => $file->status,
-			'post_parent'  => $parent_id,
 		);
 
-		if ( ! empty( $file->template ) ) {
-			$post_data['page_template'] = $file->template;
+		// Hierarchy and templates are page-specific.
+		if ( 'page' === $file->post_type ) {
+			$post_data['post_parent'] = $parent_id;
+			if ( ! empty( $file->template ) ) {
+				$post_data['page_template'] = $file->template;
+			}
 		}
 
 		$post_id = wp_insert_post( $post_data, true );
@@ -66,36 +69,38 @@ class PAC_Pusher {
 		self::write_meta( $post_id, $file );
 
 		return array(
-			'status' => 'created',
-			'id'     => $post_id,
-			'slug'   => $file->slug,
-			'title'  => $file->title,
-			'file'   => $file->relative_path,
-			'css'    => $file->css_path,
-			'js'     => $file->js_path,
+			'status'    => 'created',
+			'id'        => $post_id,
+			'slug'      => $file->slug,
+			'title'     => $file->title,
+			'post_type' => $file->post_type,
+			'file'      => $file->relative_path,
+			'css'       => $file->css_path,
+			'js'        => $file->js_path,
 		);
 	}
 
 	/**
-	 * Update an existing page or skip if unchanged.
+	 * Update an existing post or skip if unchanged.
 	 *
-	 * @param WP_Post  $existing  Existing page post object.
+	 * @param WP_Post  $existing  Existing post object.
 	 * @param PAC_File $file      Parsed file.
-	 * @param int      $parent_id Parent page ID.
+	 * @param int      $parent_id Parent post ID (page hierarchy only).
 	 * @return array|WP_Error
 	 */
-	private static function update_page( $existing, PAC_File $file, $parent_id ) {
+	private static function update_post( $existing, PAC_File $file, $parent_id ) {
 		$stored_hash = get_post_meta( $existing->ID, '_pac_hash', true );
 
 		if ( $stored_hash === $file->hash ) {
 			return array(
-				'status' => 'unchanged',
-				'id'     => $existing->ID,
-				'slug'   => $file->slug,
-				'title'  => $file->title,
-				'file'   => $file->relative_path,
-				'css'    => $file->css_path,
-				'js'     => $file->js_path,
+				'status'    => 'unchanged',
+				'id'        => $existing->ID,
+				'slug'      => $file->slug,
+				'title'     => $file->title,
+				'post_type' => $file->post_type,
+				'file'      => $file->relative_path,
+				'css'       => $file->css_path,
+				'js'        => $file->js_path,
 			);
 		}
 
@@ -105,11 +110,14 @@ class PAC_Pusher {
 			'post_name'    => $file->slug,
 			'post_content' => $file->body,
 			'post_status'  => $file->status,
-			'post_parent'  => $parent_id,
 		);
 
-		if ( ! empty( $file->template ) ) {
-			$post_data['page_template'] = $file->template;
+		// Hierarchy and templates are page-specific.
+		if ( 'page' === $file->post_type ) {
+			$post_data['post_parent'] = $parent_id;
+			if ( ! empty( $file->template ) ) {
+				$post_data['page_template'] = $file->template;
+			}
 		}
 
 		$result = wp_update_post( $post_data, true );
@@ -120,13 +128,14 @@ class PAC_Pusher {
 		self::write_meta( $existing->ID, $file );
 
 		return array(
-			'status' => 'updated',
-			'id'     => $existing->ID,
-			'slug'   => $file->slug,
-			'title'  => $file->title,
-			'file'   => $file->relative_path,
-			'css'    => $file->css_path,
-			'js'     => $file->js_path,
+			'status'    => 'updated',
+			'id'        => $existing->ID,
+			'slug'      => $file->slug,
+			'title'     => $file->title,
+			'post_type' => $file->post_type,
+			'file'      => $file->relative_path,
+			'css'       => $file->css_path,
+			'js'        => $file->js_path,
 		);
 	}
 
@@ -180,14 +189,15 @@ class PAC_Pusher {
 	}
 
 	/**
-	 * Find a page by its slug.
+	 * Find a post by its slug within a given post type.
 	 *
-	 * @param string $slug Post name (slug).
+	 * @param string $slug      Post name (slug).
+	 * @param string $post_type Post-type slug.
 	 * @return WP_Post|null
 	 */
-	private static function find_page_by_slug( $slug ) {
+	private static function find_post_by_slug( $slug, $post_type ) {
 		$query = new WP_Query( array(
-			'post_type'              => 'page',
+			'post_type'              => $post_type,
 			'name'                   => $slug,
 			'post_status'            => array( 'publish', 'draft', 'pending', 'private', 'future' ),
 			'posts_per_page'         => 1,
@@ -204,17 +214,18 @@ class PAC_Pusher {
 	}
 
 	/**
-	 * Resolve a parent page slug to its ID.
+	 * Resolve a parent slug to its ID, scoped to a single post type.
 	 *
-	 * @param string $slug Parent page slug.
+	 * @param string $slug      Parent slug.
+	 * @param string $post_type Post-type slug to look the parent up in.
 	 * @return int|WP_Error Parent ID or error.
 	 */
-	private static function resolve_parent( $slug ) {
-		$parent = self::find_page_by_slug( $slug );
+	private static function resolve_parent( $slug, $post_type ) {
+		$parent = self::find_post_by_slug( $slug, $post_type );
 		if ( ! $parent ) {
 			return new WP_Error(
 				'pac_parent_not_found',
-				sprintf( 'Parent page "%s" not found.', $slug )
+				sprintf( 'Parent "%s" not found in post type "%s".', $slug, $post_type )
 			);
 		}
 		return $parent->ID;

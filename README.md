@@ -91,11 +91,12 @@ meta:
 
 | Field | Required | Default | Description |
 |-------|----------|---------|-------------|
-| `title` | yes | -- | Page title. The only required field. |
+| `title` | yes | -- | Post title. The only required field. |
 | `slug` | no | filename | URL slug. Falls back to filename without `.html`. |
+| `type` | no | `page` | Post type. Must be registered via the `pac_post_types` filter. |
 | `status` | no | `draft` | `draft`, `publish`, `pending`, `private`, `future` |
-| `template` | no | default | Page template slug. Must exist in the active theme. |
-| `parent` | no | -- | Slug of parent page. Parent must exist before push. |
+| `template` | no | default | Page template slug. Page-only; ignored for other post types. |
+| `parent` | no | -- | Slug of parent page. Page-only; parent must exist before push. |
 | `css` | no | auto-resolved | CSS asset path relative to `wp-content/`. Overrides sibling resolution. |
 | `js` | no | auto-resolved | JS asset path relative to `wp-content/`. Overrides sibling resolution. |
 | `meta` | no | -- | Key-value map written as post meta. |
@@ -147,22 +148,81 @@ wp-content/
 - Editor parity — CSS works in the block editor without parsing `<style>` from post content
 - Simpler for future pull/sync/status features
 
+## Custom post types
+
+By default pac manages WordPress `page` posts. A theme or plugin can extend the set of managed post types with the **`pac_post_types`** filter. WooCommerce `product` and other block-editor CPTs are common candidates; once registered, you author them as `.html` files exactly like a page.
+
+```php
+// In a theme's functions.php
+add_filter( 'pac_post_types', function ( $types ) {
+    $types['product']        = array(
+        'dir'        => 'products',           // default landing dir for `wp pac pull`
+        'capability' => 'manage_woocommerce', // required cap for push/pull
+    );
+    $types['attribute_page'] = array();       // empty config uses sane defaults
+    return $types;
+} );
+```
+
+Per-type config keys (all optional):
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `dir` | post-type slug | Subdirectory under the pages root where `wp pac pull <type>/<slug>` writes by default. |
+| `capability` | post-type's `edit_posts` cap | Capability required for `wp pac push`/`pull` of this type. |
+
+`page` is always implicitly registered — the filter cannot remove it.
+
+### Authoring non-page posts
+
+```html
+---
+title: Cacao Ceremonial 200g
+slug: cacao-200g
+type: product
+status: publish
+---
+<!-- wp:heading -->
+<h2 class="wp-block-heading">Hand-pressed cacao</h2>
+<!-- /wp:heading -->
+```
+
+The `type:` front-matter field (or `--post-type=<slug>` flag at push time) selects the post type. Files can live anywhere under the pages root — subdirectory layout is convention, not required.
+
+### Pulling non-page posts
+
+```bash
+# Path-style shorthand
+wp pac pull product/cacao-200g
+
+# Explicit flag (equivalent)
+wp pac pull cacao-200g --post-type=product
+
+# Bare slug defaults to type=page
+wp pac pull about
+```
+
+### Scope (current pass)
+
+This pass roundtrips **content only**: `title`, `slug`, `status`, `excerpt`, and `post_content`. Taxonomies, prices, SKUs, attributes, image galleries, variations and other CPT-specific fields stay in the WP admin where shop managers already manage them. Hierarchy (`parent:`) and `template:` remain page-only.
+
 ## Description
 
 Pages as Code is a one-way file-to-WordPress workflow for developers and coding agents. Author your page content as `.html` files with YAML front matter and Gutenberg block markup, then push them to WordPress using WP-CLI.
 
 **Key features:**
 
-- Write pages as `.html` files with YAML front matter (title, slug, status, template, parent, css, js, meta)
-- Push pages to WordPress with `wp pac push <file>`
-- Pull pages from WordPress with `wp pac pull <slug>` — revision tracking, subfolder targeting, collision protection
+- Write pages as `.html` files with YAML front matter (title, slug, type, status, template, parent, css, js, meta)
+- Push to WordPress with `wp pac push <file>` — pages or any post type registered via the `pac_post_types` filter
+- Pull from WordPress with `wp pac pull <slug>` or `wp pac pull <type>/<slug>` — revision tracking, subfolder targeting, collision protection
 - Validate block markup with `wp pac validate <file>` — structured JSON diagnostic reports
-- SHA-256 content hashing skips unchanged pages automatically
+- SHA-256 content hashing skips unchanged posts automatically
 - Sibling CSS/JS asset resolution with three-tier fallback (front matter > sibling > shared directory)
-- Page-specific CSS enqueued on frontend and block editor; JS enqueued frontend only
-- Parent page resolution by slug
+- Per-post CSS enqueued on frontend and block editor; JS enqueued frontend only
+- Parent page resolution by slug (page-only)
 - Plugin tracking meta (`_pac_managed`, `_pac_source`, `_pac_hash`, `_pac_css`, `_pac_js`)
-- Path traversal protection and capability checks (`edit_pages`)
+- Path traversal protection and per-type capability checks
+- Filterable pages root (`pac_pages_root`) and post-type registry (`pac_post_types`)
 - JSON output format support (`--format=json`)
 - Built-in Claude Code skill with progressive disclosure for AI-assisted page creation
 
@@ -183,27 +243,28 @@ Pages as Code requires WP-CLI 2.0 or later.
 ### CLI reference
 
 ```bash
-wp pac push <file> [--format=<format>] [--user=<id>]
-wp pac pull <slug> [--dir=<dir>] [--force] [--revision-suffix] [--format=<format>] [--user=<id>]
+wp pac push <file> [--post-type=<slug>] [--format=<format>] [--user=<id>]
+wp pac pull <slug> [--post-type=<slug>] [--dir=<dir>] [--force] [--revision-suffix] [--format=<format>] [--user=<id>]
 wp pac validate <file> [--strict] [--user=<id>]
 ```
 
 | Command | Description |
 |---------|-------------|
-| `wp pac push <file>` | Push a page file to WordPress |
-| `wp pac pull <slug>` | Pull a WordPress page to a local file |
+| `wp pac push <file>` | Push a file to WordPress as a post |
+| `wp pac pull <slug>` | Pull a WordPress post to a local file. Accepts `<type>/<slug>` shorthand |
 | `wp pac validate <file>` | Validate block markup and return a JSON diagnostic report |
 
 | Argument | Description |
 |----------|-------------|
-| `<file>` | Path relative to `wp-content/pages/` (push, validate) |
-| `<slug>` | Page slug to pull (pull) |
+| `<file>` | Path relative to the pages root (push, validate) |
+| `<slug>` | Post slug, or `<type>/<slug>` shorthand (pull) |
+| `--post-type` | Post type slug. Wins over front-matter `type:` and over the path-style shorthand. Defaults to `page`. |
 | `--format` | `human` (default) or `json` |
-| `--dir` | Subdirectory to write pulled file into (pull only) |
+| `--dir` | Subdirectory to write pulled file into. Overrides per-type default. (pull only) |
 | `--force` | Overwrite existing file (pull only) |
 | `--revision-suffix` | Append revision ID to filename, e.g. `about.r123.html` (pull only) |
 | `--strict` | Treat warnings as fatal for exit code (validate only) |
-| `--user` | WordPress user ID with `edit_pages` capability |
+| `--user` | WordPress user ID with the post type's required capability |
 
 ### Push behavior
 

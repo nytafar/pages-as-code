@@ -1,6 +1,6 @@
 <?php
 /**
- * PAC_Puller — Extract WordPress pages into .html files with front matter.
+ * PAC_Puller — Extract WordPress posts into .html files with front matter.
  *
  * @package Pages_as_Code
  */
@@ -12,24 +12,27 @@ if ( ! defined( 'ABSPATH' ) ) {
 class PAC_Puller {
 
 	/**
-	 * Pull a page by slug and write it to a file.
+	 * Pull a post by slug and write it to a file.
 	 *
-	 * @param string $slug    Page slug.
-	 * @param array  $options {
+	 * @param string $slug      Post slug.
+	 * @param string $post_type Post-type slug (defaults to 'page').
+	 * @param array  $options   {
 	 *     Optional. Pull options.
 	 *
-	 *     @type string $dir             Subdirectory under pages root.
+	 *     @type string $dir             Subdirectory under pages root. Overrides
+	 *                                   the per-type default dir from
+	 *                                   pac_post_type_config().
 	 *     @type bool   $force           Overwrite existing file.
 	 *     @type bool   $revision_suffix Append revision ID to filename.
 	 * }
 	 * @return array|WP_Error Result array or error.
 	 */
-	public static function pull( $slug, $options = array() ) {
-		$post = self::find_page_by_slug( $slug );
+	public static function pull( $slug, $post_type = 'page', $options = array() ) {
+		$post = self::find_post_by_slug( $slug, $post_type );
 		if ( ! $post ) {
 			return new WP_Error(
-				'pac_page_not_found',
-				sprintf( 'No page found with slug "%s".', $slug )
+				'pac_post_not_found',
+				sprintf( 'No %s found with slug "%s".', $post_type, $slug )
 			);
 		}
 
@@ -38,7 +41,7 @@ class PAC_Puller {
 		$content     = PAC_Serializer::serialize( $fields, $post->post_content );
 
 		// Resolve output path.
-		$output = self::resolve_output_path( $post->post_name, $options, $revision_id );
+		$output = self::resolve_output_path( $post->post_name, $post_type, $options, $revision_id );
 		if ( is_wp_error( $output ) ) {
 			return $output;
 		}
@@ -63,24 +66,26 @@ class PAC_Puller {
 		update_post_meta( $post->ID, '_pac_pulled_gmt', gmdate( 'c' ) );
 
 		return array(
-			'status'   => 'pulled',
-			'file'     => $output['relative_path'],
-			'slug'     => $post->post_name,
-			'title'    => $post->post_title,
-			'id'       => $post->ID,
-			'revision' => $revision_id,
+			'status'    => 'pulled',
+			'file'      => $output['relative_path'],
+			'slug'      => $post->post_name,
+			'title'     => $post->post_title,
+			'id'        => $post->ID,
+			'post_type' => $post->post_type,
+			'revision'  => $revision_id,
 		);
 	}
 
 	/**
-	 * Find a page by its slug.
+	 * Find a post by its slug within a given post type.
 	 *
-	 * @param string $slug Post name (slug).
+	 * @param string $slug      Post name (slug).
+	 * @param string $post_type Post-type slug.
 	 * @return WP_Post|null
 	 */
-	private static function find_page_by_slug( $slug ) {
+	private static function find_post_by_slug( $slug, $post_type ) {
 		$query = new WP_Query( array(
-			'post_type'              => 'page',
+			'post_type'              => $post_type,
 			'name'                   => $slug,
 			'post_status'            => array( 'publish', 'draft', 'pending', 'private', 'future' ),
 			'posts_per_page'         => 1,
@@ -124,7 +129,7 @@ class PAC_Puller {
 	/**
 	 * Build front matter fields array from a WP_Post.
 	 *
-	 * @param WP_Post    $post        Page post object.
+	 * @param WP_Post    $post        Post object.
 	 * @param int|string $revision_id Revision ID or modified timestamp.
 	 * @return array Ordered associative array of front matter fields.
 	 */
@@ -134,17 +139,26 @@ class PAC_Puller {
 		// Core fields (always present).
 		$fields['title']  = $post->post_title;
 		$fields['slug']   = $post->post_name;
-		$fields['status'] = $post->post_status;
 
-		// Template (only if not default).
-		$template = get_post_meta( $post->ID, '_wp_page_template', true );
-		if ( ! empty( $template ) && 'default' !== $template ) {
-			$fields['template'] = $template;
+		// Emit `type:` only when the post type isn't the default ('page').
+		// Keeps existing pulled-page files visually unchanged.
+		if ( 'page' !== $post->post_type ) {
+			$fields['type'] = $post->post_type;
 		}
 
-		// Parent (only if has one).
-		if ( $post->post_parent > 0 ) {
-			$parent_slug = self::resolve_parent_slug( $post->post_parent );
+		$fields['status'] = $post->post_status;
+
+		// Template (page only, only if not default).
+		if ( 'page' === $post->post_type ) {
+			$template = get_post_meta( $post->ID, '_wp_page_template', true );
+			if ( ! empty( $template ) && 'default' !== $template ) {
+				$fields['template'] = $template;
+			}
+		}
+
+		// Parent (page only — non-pages don't roundtrip hierarchy in this pass).
+		if ( 'page' === $post->post_type && $post->post_parent > 0 ) {
+			$parent_slug = self::resolve_parent_slug( $post->post_parent, $post->post_type );
 			if ( null !== $parent_slug ) {
 				$fields['parent'] = $parent_slug;
 			}
@@ -154,13 +168,13 @@ class PAC_Puller {
 		$css_path = get_post_meta( $post->ID, '_pac_css', true );
 		if ( ! empty( $css_path ) && file_exists( $css_path ) ) {
 			// Convert absolute path to relative (from wp-content/).
-			$relative = str_replace( WP_CONTENT_DIR . '/', '', $css_path );
+			$relative      = str_replace( WP_CONTENT_DIR . '/', '', $css_path );
 			$fields['css'] = $relative;
 		}
 
 		$js_path = get_post_meta( $post->ID, '_pac_js', true );
 		if ( ! empty( $js_path ) && file_exists( $js_path ) ) {
-			$relative = str_replace( WP_CONTENT_DIR . '/', '', $js_path );
+			$relative     = str_replace( WP_CONTENT_DIR . '/', '', $js_path );
 			$fields['js'] = $relative;
 		}
 
@@ -181,20 +195,21 @@ class PAC_Puller {
 
 		// Pull tracking fields.
 		$fields['pulled_revision'] = $revision_id;
-		$fields['pulled_gmt']     = gmdate( 'c' );
+		$fields['pulled_gmt']      = gmdate( 'c' );
 
 		return $fields;
 	}
 
 	/**
-	 * Resolve parent post ID to its slug.
+	 * Resolve parent post ID to its slug, scoped to a post type.
 	 *
-	 * @param int $parent_id Parent post ID.
-	 * @return string|null Parent slug or null if not found.
+	 * @param int    $parent_id Parent post ID.
+	 * @param string $post_type Post-type slug the parent must match.
+	 * @return string|null Parent slug or null if not found / wrong type.
 	 */
-	private static function resolve_parent_slug( $parent_id ) {
+	private static function resolve_parent_slug( $parent_id, $post_type ) {
 		$parent = get_post( $parent_id );
-		if ( ! $parent || 'page' !== $parent->post_type ) {
+		if ( ! $parent || $parent->post_type !== $post_type ) {
 			return null;
 		}
 		return $parent->post_name;
@@ -203,13 +218,26 @@ class PAC_Puller {
 	/**
 	 * Resolve the output file path with collision handling.
 	 *
-	 * @param string     $slug        Page slug.
+	 * @param string     $slug        Post slug.
+	 * @param string     $post_type   Post-type slug.
 	 * @param array      $options     Pull options.
 	 * @param int|string $revision_id Revision ID for suffix mode.
 	 * @return array|WP_Error Array with full_path and relative_path, or error.
 	 */
-	private static function resolve_output_path( $slug, $options, $revision_id ) {
-		$dir             = isset( $options['dir'] ) ? trim( $options['dir'], '/' ) : '';
+	private static function resolve_output_path( $slug, $post_type, $options, $revision_id ) {
+		// Per-type default dir; --dir flag overrides; bare 'page' lands at root.
+		$dir = isset( $options['dir'] ) ? trim( (string) $options['dir'], '/' ) : null;
+		if ( null === $dir ) {
+			$config = pac_post_type_config( $post_type );
+			if ( is_array( $config ) && ! empty( $config['dir'] ) ) {
+				$dir = trim( (string) $config['dir'], '/' );
+			} elseif ( 'page' === $post_type ) {
+				$dir = '';
+			} else {
+				$dir = $post_type;
+			}
+		}
+
 		$force           = ! empty( $options['force'] );
 		$revision_suffix = ! empty( $options['revision_suffix'] );
 

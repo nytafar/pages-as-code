@@ -12,12 +12,16 @@ if ( ! defined( 'ABSPATH' ) ) {
 class PAC_CLI {
 
 	/**
-	 * Push a page file to WordPress.
+	 * Push a file to WordPress.
 	 *
 	 * ## OPTIONS
 	 *
 	 * <file>
-	 * : File path relative to the pages root (wp-content/pages/).
+	 * : File path relative to the pages root.
+	 *
+	 * [--post-type=<slug>]
+	 * : Override the post type. Wins over the front-matter `type:` field when
+	 * both are present. Defaults to `page` when neither is set.
 	 *
 	 * [--format=<format>]
 	 * : Output format.
@@ -31,7 +35,8 @@ class PAC_CLI {
 	 * ## EXAMPLES
 	 *
 	 *     wp pac push about.html
-	 *     wp pac push landing/product-a.html
+	 *     wp pac push products/cacao-200g.html
+	 *     wp pac push some/random/path/cacao.html --post-type=product
 	 *     wp pac push about.html --format=json
 	 *
 	 * @when after_wp_load
@@ -40,19 +45,29 @@ class PAC_CLI {
 	 * @param array $assoc_args Associative arguments.
 	 */
 	public function push( $args, $assoc_args ) {
-		// Capability check.
-		if ( ! current_user_can( 'edit_pages' ) ) {
-			WP_CLI::error( 'You do not have permission to edit pages.' );
-		}
-
 		$relative_path = $args[0];
 		$format        = WP_CLI\Utils\get_flag_value( $assoc_args, 'format', 'human' );
+		$flag_type     = WP_CLI\Utils\get_flag_value( $assoc_args, 'post-type', null );
 
-		// Parse the file.
+		// Parse the file (this also validates any front-matter `type:`).
 		$file = PAC_File::parse( $relative_path );
 		if ( is_wp_error( $file ) ) {
 			$this->output_error( $file->get_error_message(), $relative_path, $format );
 			return;
+		}
+
+		// Resolve final post type: --post-type flag > front-matter type: > 'page'.
+		$post_type = pac_resolve_post_type( $file, $flag_type );
+		if ( is_wp_error( $post_type ) ) {
+			$this->output_error( $post_type->get_error_message(), $relative_path, $format );
+			return;
+		}
+		$file->post_type = $post_type;
+
+		// Capability check, scoped to the resolved post type.
+		$cap = pac_post_type_capability( $post_type );
+		if ( ! current_user_can( $cap ) ) {
+			WP_CLI::error( sprintf( 'You do not have permission (%s) to push %s.', $cap, $post_type ) );
 		}
 
 		// Push to WordPress.
@@ -66,12 +81,12 @@ class PAC_CLI {
 	}
 
 	/**
-	 * Validate block markup in a page file.
+	 * Validate block markup in a file.
 	 *
 	 * ## OPTIONS
 	 *
 	 * <file>
-	 * : File path relative to the pages root (wp-content/pages/).
+	 * : File path relative to the pages root.
 	 *
 	 * [--strict]
 	 * : Treat warnings as fatal for exit code.
@@ -79,7 +94,7 @@ class PAC_CLI {
 	 * ## EXAMPLES
 	 *
 	 *     wp pac validate rite.html
-	 *     wp pac validate landing/product-a.html --strict
+	 *     wp pac validate products/cacao-200g.html --strict
 	 *
 	 * @when after_wp_load
 	 *
@@ -137,15 +152,20 @@ class PAC_CLI {
 	}
 
 	/**
-	 * Pull a WordPress page to a local file.
+	 * Pull a WordPress post to a local file.
 	 *
 	 * ## OPTIONS
 	 *
 	 * <slug>
-	 * : Page slug to pull.
+	 * : Post slug. Accepts `<post_type>/<slug>` shorthand, e.g. `product/cacao-200g`.
+	 * A bare slug defaults to post type `page`.
+	 *
+	 * [--post-type=<slug>]
+	 * : Explicit post type. Wins over the path-style shorthand.
 	 *
 	 * [--dir=<dir>]
-	 * : Subdirectory under pages root to write the file into.
+	 * : Subdirectory under the pages root to write the file into. Overrides
+	 * the per-type default dir from the pac_post_types filter.
 	 *
 	 * [--force]
 	 * : Overwrite existing file without prompting.
@@ -165,6 +185,8 @@ class PAC_CLI {
 	 * ## EXAMPLES
 	 *
 	 *     wp pac pull about
+	 *     wp pac pull product/cacao-200g
+	 *     wp pac pull cacao-200g --post-type=product
 	 *     wp pac pull about --dir=drafts/
 	 *     wp pac pull about --revision-suffix
 	 *     wp pac pull about --force --format=json
@@ -175,23 +197,39 @@ class PAC_CLI {
 	 * @param array $assoc_args Associative arguments.
 	 */
 	public function pull( $args, $assoc_args ) {
-		// Capability check.
-		if ( ! current_user_can( 'edit_pages' ) ) {
-			WP_CLI::error( 'You do not have permission to edit pages.' );
+		$raw_slug  = $args[0];
+		$format    = WP_CLI\Utils\get_flag_value( $assoc_args, 'format', 'human' );
+		$flag_type = WP_CLI\Utils\get_flag_value( $assoc_args, 'post-type', null );
+
+		// Path-style shorthand: `<type>/<slug>` — only when no explicit flag.
+		$shorthand_type = null;
+		$slug           = $raw_slug;
+		if ( null === $flag_type && false !== strpos( $raw_slug, '/' ) ) {
+			list( $shorthand_type, $slug ) = explode( '/', $raw_slug, 2 );
 		}
 
-		$slug   = $args[0];
-		$format = WP_CLI\Utils\get_flag_value( $assoc_args, 'format', 'human' );
+		// Resolve final post type: flag > shorthand > 'page'.
+		$post_type = pac_resolve_post_type( $shorthand_type, $flag_type );
+		if ( is_wp_error( $post_type ) ) {
+			$this->output_error( $post_type->get_error_message(), $raw_slug, $format );
+			return;
+		}
+
+		// Capability check, scoped to the resolved post type.
+		$cap = pac_post_type_capability( $post_type );
+		if ( ! current_user_can( $cap ) ) {
+			WP_CLI::error( sprintf( 'You do not have permission (%s) to pull %s.', $cap, $post_type ) );
+		}
 
 		$options = array(
-			'dir'             => WP_CLI\Utils\get_flag_value( $assoc_args, 'dir', '' ),
+			'dir'             => WP_CLI\Utils\get_flag_value( $assoc_args, 'dir', null ),
 			'force'           => WP_CLI\Utils\get_flag_value( $assoc_args, 'force', false ),
 			'revision_suffix' => WP_CLI\Utils\get_flag_value( $assoc_args, 'revision-suffix', false ),
 		);
 
-		$result = PAC_Puller::pull( $slug, $options );
+		$result = PAC_Puller::pull( $slug, $post_type, $options );
 		if ( is_wp_error( $result ) ) {
-			$this->output_error( $result->get_error_message(), $slug, $format );
+			$this->output_error( $result->get_error_message(), $raw_slug, $format );
 			return;
 		}
 
@@ -202,7 +240,8 @@ class PAC_CLI {
 
 		WP_CLI::success(
 			sprintf(
-				'Pulled page "%s" to %s (revision %s).',
+				'Pulled %s "%s" to %s (revision %s).',
+				$result['post_type'],
 				$result['title'],
 				$result['file'],
 				$result['revision']
@@ -222,11 +261,14 @@ class PAC_CLI {
 			return;
 		}
 
+		$post_type = isset( $result['post_type'] ) ? $result['post_type'] : 'page';
+
 		switch ( $result['status'] ) {
 			case 'created':
 				WP_CLI::success(
 					sprintf(
-						'Created page "%s" (ID %d, slug: %s).',
+						'Created %s "%s" (ID %d, slug: %s).',
+						$post_type,
 						$result['title'],
 						$result['id'],
 						$result['slug']
@@ -237,7 +279,8 @@ class PAC_CLI {
 			case 'updated':
 				WP_CLI::success(
 					sprintf(
-						'Updated page "%s" (ID %d, slug: %s).',
+						'Updated %s "%s" (ID %d, slug: %s).',
+						$post_type,
 						$result['title'],
 						$result['id'],
 						$result['slug']
@@ -248,7 +291,8 @@ class PAC_CLI {
 			case 'unchanged':
 				WP_CLI::success(
 					sprintf(
-						'Page "%s" unchanged, skipping.',
+						'%s "%s" unchanged, skipping.',
+						ucfirst( $post_type ),
 						$result['title']
 					)
 				);
@@ -268,7 +312,7 @@ class PAC_CLI {
 	 * Output an error.
 	 *
 	 * @param string $message       Error message.
-	 * @param string $relative_path File path for JSON output.
+	 * @param string $relative_path File path or slug for JSON output.
 	 * @param string $format        Output format.
 	 */
 	private function output_error( $message, $relative_path, $format ) {

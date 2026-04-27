@@ -4,7 +4,7 @@ Tags: pages, cli, gutenberg, blocks, developer-tools
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 1.7.0
+Stable tag: 1.8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -16,16 +16,17 @@ Pages as Code is a one-way file-to-WordPress workflow for developers and coding 
 
 **Key features:**
 
-- Write pages as `.html` files with YAML front matter (title, slug, status, template, parent, css, js, meta)
-- Push pages to WordPress with `wp pac push <file>`
-- Pull pages from WordPress with `wp pac pull <slug>` — revision tracking, subfolder targeting, collision protection
+- Write pages as `.html` files with YAML front matter (title, slug, type, status, template, parent, css, js, meta)
+- Push to WordPress with `wp pac push <file>` — pages or any post type registered via the `pac_post_types` filter
+- Pull from WordPress with `wp pac pull <slug>` or `wp pac pull <type>/<slug>` — revision tracking, subfolder targeting, collision protection
 - Validate block markup with `wp pac validate <file>` — structured JSON diagnostic reports
-- SHA-256 content hashing skips unchanged pages automatically
+- SHA-256 content hashing skips unchanged posts automatically
 - Sibling CSS/JS asset resolution with three-tier fallback (front matter > sibling > shared directory)
-- Page-specific CSS enqueued on frontend and block editor; JS enqueued frontend only
-- Parent page resolution by slug
+- Per-post CSS enqueued on frontend and block editor; JS enqueued frontend only
+- Parent page resolution by slug (page-only)
 - Plugin tracking meta (`_pac_managed`, `_pac_source`, `_pac_hash`, `_pac_css`, `_pac_js`)
-- Path traversal protection and capability checks (`edit_pages`)
+- Path traversal protection and per-type capability checks
+- Filterable pages root (`pac_pages_root`) and post-type registry (`pac_post_types`)
 - JSON output format support (`--format=json`)
 - Built-in Claude Code skill with progressive disclosure for AI-assisted page creation
 
@@ -46,27 +47,28 @@ Pages as Code requires WP-CLI 2.0 or later.
 = CLI reference =
 
 ```bash
-wp pac push <file> [--format=<format>] [--user=<id>]
-wp pac pull <slug> [--dir=<dir>] [--force] [--revision-suffix] [--format=<format>] [--user=<id>]
+wp pac push <file> [--post-type=<slug>] [--format=<format>] [--user=<id>]
+wp pac pull <slug> [--post-type=<slug>] [--dir=<dir>] [--force] [--revision-suffix] [--format=<format>] [--user=<id>]
 wp pac validate <file> [--strict] [--user=<id>]
 ```
 
 | Command | Description |
 |---------|-------------|
-| `wp pac push <file>` | Push a page file to WordPress |
-| `wp pac pull <slug>` | Pull a WordPress page to a local file |
+| `wp pac push <file>` | Push a file to WordPress as a post |
+| `wp pac pull <slug>` | Pull a WordPress post to a local file. Accepts `<type>/<slug>` shorthand |
 | `wp pac validate <file>` | Validate block markup and return a JSON diagnostic report |
 
 | Argument | Description |
 |----------|-------------|
-| `<file>` | Path relative to `wp-content/pages/` (push, validate) |
-| `<slug>` | Page slug to pull (pull) |
+| `<file>` | Path relative to the pages root (push, validate) |
+| `<slug>` | Post slug, or `<type>/<slug>` shorthand (pull) |
+| `--post-type` | Post type slug. Wins over front-matter `type:` and over the path-style shorthand. Defaults to `page`. |
 | `--format` | `human` (default) or `json` |
-| `--dir` | Subdirectory to write pulled file into (pull only) |
+| `--dir` | Subdirectory to write pulled file into. Overrides per-type default. (pull only) |
 | `--force` | Overwrite existing file (pull only) |
 | `--revision-suffix` | Append revision ID to filename, e.g. `about.r123.html` (pull only) |
 | `--strict` | Treat warnings as fatal for exit code (validate only) |
-| `--user` | WordPress user ID with `edit_pages` capability |
+| `--user` | WordPress user ID with the post type's required capability |
 
 = Push behavior =
 

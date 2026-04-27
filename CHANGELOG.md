@@ -2,6 +2,29 @@
 
 All notable changes to Pages as Code will be documented in this file.
 
+## [1.8.0] - 2026-04-27
+
+### Added
+- **`pac_post_types` filter** — themes and plugins can register additional post types managed by pac (e.g. WooCommerce `product`, custom CPTs). Per-type config supports `dir` (default landing dir for pull) and `capability` (required cap for push/pull). `page` is always implicitly registered.
+- **`type:` front matter field** — declares the post type for a file. Defaults to `page` when absent. Validated against the registered registry.
+- **`--post-type=<slug>` CLI flag** on `wp pac push` and `wp pac pull`. Wins over front-matter `type:` and over the path-style shorthand.
+- **Path-style pull shorthand** — `wp pac pull product/cacao-200g` is equivalent to `wp pac pull cacao-200g --post-type=product`.
+- **`pac_pages_root` filter** — themes can override the managed-pages directory (e.g. `wp-content/pac/` instead of `wp-content/pages/`). When the filter is registered, activation skips scaffolding so the consumer can manage its own `CLAUDE.md` / `.claude/skills/`.
+- Internal helpers `pac_pages_root()`, `pac_post_types()`, `pac_post_type_config()`, `pac_resolve_post_type()`, `pac_post_type_capability()` exposed for theme/plugin consumers.
+- `post_type` field in push/pull result payloads.
+
+### Changed
+- Asset enqueue (`PAC_Assets`) now fires for every registered post type, not just `page`.
+- Capability checks are per-post-type (resolved via the registered config or the post-type object's `edit_posts` cap), not the hardcoded `edit_pages`.
+- `PAC_Pusher::find_page_by_slug()` → `find_post_by_slug( $slug, $post_type )`. Parent resolution is now scoped to the same post type.
+- `PAC_Puller::pull()` now takes `( $slug, $post_type = 'page', $options = array() )`. Default landing directory comes from the per-type `dir` config (falls back to the post-type slug; `page` still lands at the pages root).
+- Page-only fields (`template`, `parent`) are stripped from the post payload for non-page post types.
+- Existing `page` files round-trip byte-for-byte unchanged: `type:` is only emitted in pulled front matter when `post_type !== 'page'`.
+
+### Backwards compatibility
+- Files at the pages root with no `type:` field continue to push as `page` — no migration required.
+- All existing CLI invocations (`wp pac push <file>`, `wp pac pull <slug>`, `wp pac validate <file>`) work unchanged.
+
 ## [1.7.0] - 2026-04-04
 
 ### Added

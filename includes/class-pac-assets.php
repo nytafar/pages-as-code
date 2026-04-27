@@ -20,10 +20,11 @@ class PAC_Assets {
 	}
 
 	/**
-	 * Enqueue CSS and JS for a PAC-managed page on the frontend.
+	 * Enqueue CSS and JS for a PAC-managed post on the frontend.
 	 */
 	public static function enqueue_frontend() {
-		if ( ! is_singular( 'page' ) ) {
+		$managed_types = array_keys( pac_post_types() );
+		if ( ! is_singular( $managed_types ) ) {
 			return;
 		}
 
@@ -37,14 +38,19 @@ class PAC_Assets {
 	}
 
 	/**
-	 * Enqueue CSS for a PAC-managed page in the block editor.
+	 * Enqueue CSS for a PAC-managed post in the block editor.
 	 *
 	 * JS is intentionally excluded from the editor for MVP — frontend scripts
 	 * often rely on DOM state that doesn't exist inside the editor iframe.
 	 */
 	public static function enqueue_editor() {
 		$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
-		if ( ! $screen || 'page' !== $screen->post_type ) {
+		if ( ! $screen ) {
+			return;
+		}
+
+		$managed_types = array_keys( pac_post_types() );
+		if ( ! in_array( $screen->post_type, $managed_types, true ) ) {
 			return;
 		}
 
