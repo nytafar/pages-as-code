@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 define( 'PAC_VERSION', '1.7.0' );
 define( 'PAC_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
-define( 'PAC_PAGES_ROOT', WP_CONTENT_DIR . '/pages' );
+define( 'PAC_PAGES_ROOT_DEFAULT', WP_CONTENT_DIR . '/pages' );
 
 require_once PAC_PLUGIN_DIR . 'includes/class-pac-file.php';
 require_once PAC_PLUGIN_DIR . 'includes/class-pac-pusher.php';
@@ -32,15 +32,39 @@ require_once PAC_PLUGIN_DIR . 'includes/class-pac-puller.php';
 PAC_Assets::init();
 
 /**
+ * Get the managed pages root directory.
+ *
+ * Themes and plugins can override the location with the `pac_pages_root`
+ * filter. When the filter is registered, activation will not scaffold
+ * agent instructions or skills — the consumer manages those itself.
+ *
+ * @return string Absolute path to the pages root, no trailing slash.
+ */
+function pac_pages_root() {
+	return rtrim( (string) apply_filters( 'pac_pages_root', PAC_PAGES_ROOT_DEFAULT ), '/' );
+}
+
+/**
  * On activation, create the pages directory and scaffold AI agent skills.
+ *
+ * If the `pac_pages_root` filter is registered (e.g. by a theme), the
+ * scaffolding step is skipped — the consumer is expected to manage its
+ * own CLAUDE.md and skills tree.
  */
 function pac_activate() {
-	if ( ! is_dir( PAC_PAGES_ROOT ) ) {
-		wp_mkdir_p( PAC_PAGES_ROOT );
+	$pages_root = pac_pages_root();
+
+	if ( ! is_dir( $pages_root ) ) {
+		wp_mkdir_p( $pages_root );
+	}
+
+	// Skip scaffolding when a theme/plugin overrides the pages root.
+	if ( has_filter( 'pac_pages_root' ) ) {
+		return;
 	}
 
 	// Create .gitkeep so the directory can be committed to version control.
-	$gitkeep = PAC_PAGES_ROOT . '/.gitkeep';
+	$gitkeep = $pages_root . '/.gitkeep';
 	if ( ! file_exists( $gitkeep ) ) {
 		file_put_contents( $gitkeep, '' );
 	}
@@ -48,7 +72,7 @@ function pac_activate() {
 	// Copy agent instructions to pages root (separate from plugin dev CLAUDE.md).
 	// Skip if already present — deployed sites may have customized versions.
 	$source = PAC_PLUGIN_DIR . 'assets/pages-CLAUDE.md';
-	$dest   = PAC_PAGES_ROOT . '/CLAUDE.md';
+	$dest   = $pages_root . '/CLAUDE.md';
 	if ( file_exists( $source ) && ! file_exists( $dest ) ) {
 		copy( $source, $dest );
 	}
@@ -56,7 +80,7 @@ function pac_activate() {
 	// Copy .claude/skills/ tree to pages root for Claude Code skill discovery.
 	// Skip if the skills directory already exists — avoid overwriting customizations.
 	$skills_source = PAC_PLUGIN_DIR . '.claude/skills';
-	$skills_dest   = PAC_PAGES_ROOT . '/.claude/skills';
+	$skills_dest   = $pages_root . '/.claude/skills';
 	if ( is_dir( $skills_source ) && ! is_dir( $skills_dest ) ) {
 		pac_copy_directory( $skills_source, $skills_dest );
 	}

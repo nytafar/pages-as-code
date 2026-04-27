@@ -221,9 +221,10 @@ class PAC_Puller {
 		}
 
 		// Build paths.
+		$pages_root    = pac_pages_root();
 		$relative_path = '' !== $dir ? $dir . '/' . $filename : $filename;
-		$full_path     = PAC_PAGES_ROOT . '/' . $relative_path;
-		$root_real     = realpath( PAC_PAGES_ROOT );
+		$full_path     = $pages_root . '/' . $relative_path;
+		$root_real     = realpath( $pages_root );
 		$target_dir    = dirname( $full_path );
 		$target_real   = realpath( $target_dir );
 

@@ -134,7 +134,7 @@ class PAC_File {
 		}
 
 		// Resolve sibling CSS/JS assets.
-		$full_path = PAC_PAGES_ROOT . '/' . $relative_path;
+		$full_path = pac_pages_root() . '/' . $relative_path;
 		$css_front = isset( $yaml['css'] ) ? (string) $yaml['css'] : null;
 		$js_front  = isset( $yaml['js'] ) ? (string) $yaml['js'] : null;
 
@@ -184,7 +184,7 @@ class PAC_File {
 		}
 
 		// 3. Shared directory under pages root.
-		$shared = PAC_PAGES_ROOT . '/' . $ext . '/' . $basename . '.' . $ext;
+		$shared = pac_pages_root() . '/' . $ext . '/' . $basename . '.' . $ext;
 		if ( self::validate_asset_path( $shared ) ) {
 			return $shared;
 		}
@@ -225,13 +225,14 @@ class PAC_File {
 			return new WP_Error( 'pac_empty_path', 'File path is empty.' );
 		}
 
-		$full_path = PAC_PAGES_ROOT . '/' . $relative_path;
-		$real_path = realpath( $full_path );
+		$pages_root = pac_pages_root();
+		$full_path  = $pages_root . '/' . $relative_path;
+		$real_path  = realpath( $full_path );
 
 		// If file doesn't exist, realpath returns false. Check with dirname.
 		if ( false === $real_path ) {
-			$dir_real = realpath( dirname( $full_path ) );
-			$root_real = realpath( PAC_PAGES_ROOT );
+			$dir_real  = realpath( dirname( $full_path ) );
+			$root_real = realpath( $pages_root );
 			if ( false === $root_real || false === $dir_real || ( $dir_real !== $root_real && 0 !== strpos( $dir_real . '/', $root_real . '/' ) ) ) {
 				return new WP_Error(
 					'pac_path_traversal',
@@ -241,7 +242,7 @@ class PAC_File {
 			return $full_path;
 		}
 
-		$root_real = realpath( PAC_PAGES_ROOT );
+		$root_real = realpath( $pages_root );
 		if (
 			false === $root_real ||
 			( $real_path !== $root_real && 0 !== strpos( $real_path, $root_real . '/' ) )
