@@ -38,8 +38,8 @@ Pages as Code requires WP-CLI 2.0 or later.
    ```bash
    wp plugin install pages-as-code --activate
    ```
-2. Activate the plugin. On activation it creates `wp-content/pages/` with a `.gitkeep` and copies the Claude Code skill and instructions for AI agents.
-3. Create `.html` files in `wp-content/pages/`.
+2. Activate the plugin. On activation it creates `wp-content/pages/` with a `.gitkeep` and copies the Claude Code skill and instructions for AI agents. (If a theme registers the [`pac_pages_root` filter](#filter-pac_pages_root), only the directory is created — the scaffolding is left to the theme.)
+3. Create `.html` files in `wp-content/pages/` (or your configured pages root).
 4. Push: `wp pac push <file> --user=<admin_id>`
 
 == Usage ==
@@ -74,9 +74,11 @@ wp pac validate <file> [--strict] [--user=<id>]
 
 | Scenario | Action | Output |
 |----------|--------|--------|
-| Page doesn't exist | `wp_insert_post()` | `Created page "About" (ID 42, slug: about).` |
-| Page exists, file unchanged | Skip (no-op) | `Page "About" unchanged, skipping.` |
-| Page exists, file changed | `wp_update_post()` + revision | `Updated page "About" (ID 42, slug: about).` |
+| Post doesn't exist | `wp_insert_post()` | `Created page "About" (ID 42, slug: about).` |
+| Post exists, file unchanged | Skip (no-op) | `Page "About" unchanged, skipping.` |
+| Post exists, file changed | `wp_update_post()` + revision | `Updated page "About" (ID 42, slug: about).` |
+
+The output substitutes the actual post type — `Created product "…"`, `Updated attribute_page "…"`, etc. Lookup is `(slug, post_type)`, so the same slug can exist under different post types without collision.
 
 = Validate block markup =
 
@@ -100,13 +102,20 @@ The validator checks for:
 
 Exit codes: `0` = ok, `1` = fatal issues (or warnings with `--strict`).
 
-= Pull a page from WordPress =
+= Pull a post from WordPress =
 
 ```bash
-# Pull by slug — writes to wp-content/pages/about.html
+# Pull a page by slug — writes to <pages-root>/about.html
 wp pac pull about --user=1
 
-# Pull into a subdirectory
+# Pull a non-page post — path-style shorthand selects the type
+wp pac pull product/cacao-200g --user=1
+# Writes <pages-root>/products/cacao-200g.html (per-type default dir)
+
+# Equivalent with the explicit flag
+wp pac pull cacao-200g --post-type=product --user=1
+
+# Pull into a subdirectory (overrides the per-type default)
 wp pac pull about --dir=drafts/ --user=1
 
 # Pull with revision ID in filename (versioned snapshot)
@@ -120,7 +129,7 @@ wp pac pull about --force --user=1
 wp pac pull about --force --format=json --user=1
 ```
 
-Pulled files include `pulled_revision` and `pulled_gmt` in front matter for revision tracking. These fields are ignored on push.
+Pulled files include `pulled_revision` and `pulled_gmt` in front matter for revision tracking. These fields are ignored on push. The `type:` front-matter field is only emitted for non-page posts so that pulled `page` files round-trip byte-for-byte unchanged.
 
 = Finding admin users =
 
@@ -146,16 +155,19 @@ wp pac push company/team.html --user=1
 Pages use `.html` files with YAML front matter at the top (delimited by `---`). The body contains standard Gutenberg block markup.
 
 = Does it support posts or custom post types? =
-No. Pages as Code currently supports pages only. Post and custom post type support may be added in future versions.
+Yes. As of 1.8.0, themes and plugins can register additional post types via the `pac_post_types` filter — see [Custom post types](#custom-post-types). Each entry can override the default landing directory and required capability. `page` is always implicitly registered. The post type for a file is declared in the `type:` front-matter field or via the `--post-type=<slug>` CLI flag. Scope is currently `title` / `slug` / `status` / `excerpt` / `post_content`; CPT-specific fields like product price, SKU, and taxonomies stay in WP admin.
 
 = What happens if I edit a page in WordPress after pushing? =
-The next `wp pac push` for that file will overwrite any changes made in WordPress. Pages as Code is a one-way file-to-WordPress workflow. The file is always the source of truth at push time.
+The next `wp pac push` for that file will overwrite any changes made in WordPress. Pages as Code is a one-way file-to-WordPress workflow. The file is always the source of truth at push time. To capture human edits, run `wp pac pull <slug>` first.
 
 = How does the skip-if-unchanged behavior work? =
 Pages as Code computes a SHA-256 hash of the file content and stores it as post meta (`_pac_hash`). On subsequent pushes, if the hash matches, the push is skipped. This avoids unnecessary database writes.
 
 = What YAML front matter fields are supported? =
-`title` (required), `slug`, `status`, `template`, `parent`, and `meta`.
+`title` (required), `slug`, `type`, `status`, `template` (page-only), `parent` (page-only), `css`, `js`, and `meta`. See the [front matter table](#front-matter-fields) for defaults and validation rules.
+
+= Can I move the managed-files directory somewhere other than `wp-content/pages/`? =
+Yes — register the [`pac_pages_root` filter](#filter-pac_pages_root) and return any absolute path. All commands and the asset enqueue follow the filter. Note that registering it also tells the plugin to skip activation scaffolding, so you take ownership of `CLAUDE.md` and the `.claude/skills/` tree.
 
 = Does it require WP-CLI? =
 Yes. Pages as Code is a CLI-only tool with no admin UI. It requires WP-CLI 2.0 or later.
@@ -165,6 +177,17 @@ Yes. Pages as Code is a CLI-only tool with no admin UI. It requires WP-CLI 2.0 o
 No screenshots. Pages as Code is a CLI-only tool with no admin interface.
 
 == Changelog ==
+
+= 1.8.0 =
+
+* `pac_post_types` filter — register additional post types (e.g. WooCommerce `product`, custom CPTs) for management via `wp pac push`/`pull`. Per-type config supports `dir` (default landing dir for pull) and `capability` (required cap). `page` is always implicit.
+* `type:` front matter field — declares the post type (default `page`). Validated against the registry.
+* `--post-type=<slug>` flag on `wp pac push` and `wp pac pull`. Wins over front-matter `type:` and the path-style shorthand.
+* Path-style pull shorthand — `wp pac pull product/cacao-200g` is equivalent to `wp pac pull cacao-200g --post-type=product`.
+* `pac_pages_root` filter — themes can override the managed files directory. Registering the filter signals consent that the consumer manages its own `CLAUDE.md` / `.claude/skills/`, so activation skips that scaffolding (the directory itself is still created).
+* Internal helpers exposed for theme/plugin consumers: `pac_pages_root()`, `pac_post_types()`, `pac_post_type_config()`, `pac_resolve_post_type()`, `pac_post_type_capability()`.
+* Asset enqueue and capability checks now apply per-post-type (no more hardcoded `is_singular('page')` / `edit_pages`).
+* Existing `page` files continue to push/pull byte-for-byte unchanged — no `type:` line is emitted on pulled pages, and bare files default to type `page` with no migration required.
 
 = 1.7.0 =
 
