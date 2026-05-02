@@ -61,7 +61,11 @@ class PAC_Pusher {
 			}
 		}
 
-		$post_id = wp_insert_post( $post_data, true );
+		// wp_insert_post() expects form-style escaped data and runs wp_unslash()
+		// on every field. PAC reads its content straight from disk, so we slash
+		// it first to compensate — otherwise sequences like < (in block-
+		// comment JSON) get unslashed to a bare "u003c", breaking inline HTML.
+		$post_id = wp_insert_post( wp_slash( $post_data ), true );
 		if ( is_wp_error( $post_id ) ) {
 			return $post_id;
 		}
@@ -120,7 +124,11 @@ class PAC_Pusher {
 			}
 		}
 
-		$result = wp_update_post( $post_data, true );
+		// wp_update_post() expects form-style escaped data and runs wp_unslash()
+		// on every field. PAC reads its content straight from disk, so we slash
+		// it first to compensate — otherwise sequences like < (in block-
+		// comment JSON) get unslashed to a bare "u003c", breaking inline HTML.
+		$result = wp_update_post( wp_slash( $post_data ), true );
 		if ( is_wp_error( $result ) ) {
 			return $result;
 		}
@@ -180,7 +188,7 @@ class PAC_Pusher {
 	 */
 	private static function write_asset_meta( $post_id, $path_key, $hash_key, $path, $hash ) {
 		if ( null !== $path ) {
-			update_post_meta( $post_id, $path_key, $path );
+			update_post_meta( $post_id, $path_key, PAC_Asset_Path::to_relative( $path ) );
 			update_post_meta( $post_id, $hash_key, $hash );
 		} else {
 			delete_post_meta( $post_id, $path_key );

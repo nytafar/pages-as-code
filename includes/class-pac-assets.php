@@ -69,18 +69,23 @@ class PAC_Assets {
 	 * @param string $context 'frontend' or 'editor'.
 	 */
 	private static function enqueue_css( $post_id, $context ) {
-		$css_path = get_post_meta( $post_id, '_pac_css', true );
-		if ( empty( $css_path ) || ! is_readable( $css_path ) ) {
+		$stored = get_post_meta( $post_id, '_pac_css', true );
+		if ( empty( $stored ) ) {
 			return;
 		}
 
-		$url = self::path_to_url( $css_path );
-		if ( ! $url ) {
+		$absolute = PAC_Asset_Path::to_absolute( $stored );
+		if ( ! is_readable( $absolute ) ) {
+			return;
+		}
+
+		$url = PAC_Asset_Path::to_url( $stored );
+		if ( '' === $url ) {
 			return;
 		}
 
 		$handle  = 'pac-page-' . $post_id;
-		$version = file_exists( $css_path ) ? (string) filemtime( $css_path ) : PAC_VERSION;
+		$version = (string) filemtime( $absolute );
 
 		wp_enqueue_style( $handle, $url, array(), $version );
 	}
@@ -91,44 +96,25 @@ class PAC_Assets {
 	 * @param int $post_id Post ID.
 	 */
 	private static function enqueue_js( $post_id ) {
-		$js_path = get_post_meta( $post_id, '_pac_js', true );
-		if ( empty( $js_path ) || ! is_readable( $js_path ) ) {
+		$stored = get_post_meta( $post_id, '_pac_js', true );
+		if ( empty( $stored ) ) {
 			return;
 		}
 
-		$url = self::path_to_url( $js_path );
-		if ( ! $url ) {
+		$absolute = PAC_Asset_Path::to_absolute( $stored );
+		if ( ! is_readable( $absolute ) ) {
+			return;
+		}
+
+		$url = PAC_Asset_Path::to_url( $stored );
+		if ( '' === $url ) {
 			return;
 		}
 
 		$handle  = 'pac-page-' . $post_id . '-js';
-		$version = file_exists( $js_path ) ? (string) filemtime( $js_path ) : PAC_VERSION;
+		$version = (string) filemtime( $absolute );
 
 		wp_enqueue_script( $handle, $url, array(), $version, true );
-	}
-
-	/**
-	 * Convert an absolute filesystem path to a URL.
-	 *
-	 * Supports custom WP_CONTENT_DIR / WP_CONTENT_URL setups.
-	 *
-	 * @param string $path Absolute file path.
-	 * @return string|false URL or false if path is outside WP_CONTENT_DIR.
-	 */
-	private static function path_to_url( $path ) {
-		$content_dir = realpath( WP_CONTENT_DIR );
-		$real_path   = realpath( $path );
-
-		if ( false === $content_dir || false === $real_path ) {
-			return false;
-		}
-
-		if ( 0 !== strpos( $real_path, $content_dir ) ) {
-			return false;
-		}
-
-		$relative = substr( $real_path, strlen( $content_dir ) );
-		return WP_CONTENT_URL . $relative;
 	}
 
 	/**

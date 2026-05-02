@@ -16,6 +16,7 @@ includes/
   class-pac-serializer.php   YAML front matter + block body serialization (shared by pull, future tools)
   class-pac-validator.php    Block markup validation: parse_blocks() tree walker, per-block rules, JSON reports
   class-pac-assets.php       Frontend + editor CSS/JS enqueue for managed pages
+  class-pac-asset-path.php   Convert asset paths between relative, absolute, and URL forms (single source of truth for portable storage)
 .claude/skills/pages-as-code/   Skill shipped to users (copied to pages dir on activation)
 assets/pages-CLAUDE.md       Agent instructions shipped to users (copied to pages dir on activation)
 tools/generate-readme.php    Generates readme.txt from README.md + readme.meta.json
@@ -46,6 +47,7 @@ The readme.txt is regenerated automatically by the pre-commit hook.
 - Only `page` post type — no posts, no CPTs
 - Zero external dependencies — bundled minimal YAML parser
 - No admin UI, no settings page, no dashboard widgets
+- Asset path meta (`_pac_css`, `_pac_js`) is wp-content-relative; route every read/write through `PAC_Asset_Path` (`includes/class-pac-asset-path.php`) — never store or interpret absolute paths directly.
 
 ## Testing workflow
 

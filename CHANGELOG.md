@@ -2,6 +2,12 @@
 
 All notable changes to Pages as Code will be documented in this file.
 
+## [1.9.0] - 2026-04-29
+
+### Changed
+- **Portable asset paths.** `_pac_css` / `_pac_js` post meta now store paths relative to `WP_CONTENT_DIR` (e.g. `pages/cacao.css`, `pac/origin.css`) instead of absolute filesystem paths. Stored values now survive filesystem moves and coexist cleanly across pages-root variants (legacy `wp-content/pages/` and custom `wp-content/pac/`).
+- New `PAC_Asset_Path` helper centralises conversion between relative, absolute, and URL forms. All read sites tolerate legacy absolute values transparently — existing pages keep rendering with no migration step. Subsequent pushes naturally rewrite meta to the relative form.
+
 ## [1.8.0] - 2026-04-27
 
 ### Added

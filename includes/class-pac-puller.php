@@ -164,18 +164,16 @@ class PAC_Puller {
 			}
 		}
 
-		// Asset references (only if files exist on disk).
-		$css_path = get_post_meta( $post->ID, '_pac_css', true );
-		if ( ! empty( $css_path ) && file_exists( $css_path ) ) {
-			// Convert absolute path to relative (from wp-content/).
-			$relative      = str_replace( WP_CONTENT_DIR . '/', '', $css_path );
-			$fields['css'] = $relative;
+		// Asset references (only if files exist on disk). Stored values are
+		// wp-content-relative; legacy absolute values are tolerated by the helper.
+		$css_meta = get_post_meta( $post->ID, '_pac_css', true );
+		if ( ! empty( $css_meta ) && file_exists( PAC_Asset_Path::to_absolute( $css_meta ) ) ) {
+			$fields['css'] = PAC_Asset_Path::to_relative( $css_meta );
 		}
 
-		$js_path = get_post_meta( $post->ID, '_pac_js', true );
-		if ( ! empty( $js_path ) && file_exists( $js_path ) ) {
-			$relative     = str_replace( WP_CONTENT_DIR . '/', '', $js_path );
-			$fields['js'] = $relative;
+		$js_meta = get_post_meta( $post->ID, '_pac_js', true );
+		if ( ! empty( $js_meta ) && file_exists( PAC_Asset_Path::to_absolute( $js_meta ) ) ) {
+			$fields['js'] = PAC_Asset_Path::to_relative( $js_meta );
 		}
 
 		// User-defined meta (round-trip from push).
