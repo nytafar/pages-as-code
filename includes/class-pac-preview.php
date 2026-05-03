@@ -99,10 +99,8 @@ class PAC_Preview {
 	 * @param PAC_File $file Parsed PAC file.
 	 */
 	private static function enqueue_assets( PAC_File $file ) {
-		$hash = substr( hash( 'sha256', $file->relative_path ), 0, 12 );
-
-		self::enqueue_asset( 'pac-preview-' . $hash, $file->css_path, 'style' );
-		self::enqueue_asset( 'pac-preview-' . $hash . '-js', $file->js_path, 'script' );
+		self::enqueue_asset( self::asset_handle( $file, 'css' ), $file->css_path, 'style' );
+		self::enqueue_asset( self::asset_handle( $file, 'js' ), $file->js_path, 'script' );
 	}
 
 	/**
@@ -117,15 +115,14 @@ class PAC_Preview {
 			return;
 		}
 
-		$relative = PAC_Asset_Path::to_relative( $path );
-		$absolute = PAC_Asset_Path::to_absolute( $relative );
-		$url      = PAC_Asset_Path::to_url( $relative );
+		$path = (string) $path;
+		$url  = PAC_Asset_Path::to_url( $path );
 
-		if ( '' === $url || ! is_readable( $absolute ) ) {
+		if ( '' === $url || ! is_readable( $path ) ) {
 			return;
 		}
 
-		$version = filemtime( $absolute );
+		$version = filemtime( $path );
 		if ( false === $version ) {
 			$version = null;
 		}
@@ -136,6 +133,18 @@ class PAC_Preview {
 		}
 
 		wp_enqueue_style( $handle, $url, array(), $version );
+	}
+
+	/**
+	 * Build a stable preview asset handle for a file.
+	 *
+	 * @param PAC_File $file       Parsed PAC file.
+	 * @param string   $asset_type Asset suffix, e.g. css or js.
+	 * @return string
+	 */
+	private static function asset_handle( PAC_File $file, $asset_type ) {
+		$hash = substr( hash( 'sha256', $file->relative_path ), 0, 12 );
+		return 'pac-preview-' . $hash . '-' . $asset_type;
 	}
 
 	/**
