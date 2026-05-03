@@ -93,7 +93,11 @@ class PAC_Preview {
 			}
 		}
 
-		if ( ! preg_match( '/\.html$/i', $request_path ) ) {
+		if ( preg_match( '/\.html$/i', $request_path ) && ! preg_match( '/\.html$/', $request_path ) ) {
+			return new WP_Error( 'pac_invalid_preview_extension', 'Preview files must use a lowercase .html extension.' );
+		}
+
+		if ( ! preg_match( '/\.html$/', $request_path ) ) {
 			$request_path .= '.html';
 		}
 
@@ -204,17 +208,17 @@ class PAC_Preview {
 	 * @return string Absolute template path.
 	 */
 	private static function locate_template() {
-		$override      = pac_pages_root() . '/preview.php';
-		$override_real = realpath( $override );
-		$root_real     = realpath( pac_pages_root() );
+		$override               = pac_pages_root() . '/preview.php';
+		$resolved_override_path = realpath( $override );
+		$resolved_root_path     = realpath( pac_pages_root() );
 		if (
-			false !== $override_real &&
-			false !== $root_real &&
-			is_readable( $override_real ) &&
-			$root_real === dirname( $override_real ) &&
-			'preview.php' === basename( $override_real )
+			false !== $resolved_override_path &&
+			false !== $resolved_root_path &&
+			is_readable( $resolved_override_path ) &&
+			$resolved_root_path === dirname( $resolved_override_path ) &&
+			'preview.php' === basename( $resolved_override_path )
 		) {
-			return $override_real;
+			return $resolved_override_path;
 		}
 
 		return PAC_PLUGIN_DIR . 'templates/preview.php';
