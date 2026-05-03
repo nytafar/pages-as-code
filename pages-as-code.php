@@ -25,12 +25,14 @@ require_once PAC_PLUGIN_DIR . 'includes/class-pac-asset-path.php';
 require_once PAC_PLUGIN_DIR . 'includes/class-pac-file.php';
 require_once PAC_PLUGIN_DIR . 'includes/class-pac-pusher.php';
 require_once PAC_PLUGIN_DIR . 'includes/class-pac-assets.php';
+require_once PAC_PLUGIN_DIR . 'includes/class-pac-preview.php';
 require_once PAC_PLUGIN_DIR . 'includes/class-pac-validator.php';
 require_once PAC_PLUGIN_DIR . 'includes/class-pac-serializer.php';
 require_once PAC_PLUGIN_DIR . 'includes/class-pac-puller.php';
 
 // Initialize frontend/editor asset enqueue.
 PAC_Assets::init();
+PAC_Preview::init();
 
 /**
  * Get the managed pages root directory.
@@ -187,6 +189,9 @@ function pac_activate() {
 		wp_mkdir_p( $pages_root );
 	}
 
+	PAC_Preview::register_rewrite_rules();
+	flush_rewrite_rules();
+
 	// Skip scaffolding when a theme/plugin overrides the pages root.
 	if ( has_filter( 'pac_pages_root' ) ) {
 		return;
@@ -243,6 +248,14 @@ function pac_copy_directory( $source, $dest ) {
 	}
 }
 register_activation_hook( __FILE__, 'pac_activate' );
+
+/**
+ * Flush rewrite rules on deactivation to remove preview routes.
+ */
+function pac_deactivate() {
+	flush_rewrite_rules();
+}
+register_deactivation_hook( __FILE__, 'pac_deactivate' );
 
 /**
  * Register WP-CLI command when running in CLI context.
