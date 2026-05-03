@@ -93,8 +93,9 @@ class PAC_Preview {
 			}
 		}
 
-		$request_path  = preg_replace( '/\.html$/i', '', $request_path );
-		$request_path .= '.html';
+		if ( ! preg_match( '/\.html$/i', $request_path ) ) {
+			$request_path .= '.html';
+		}
 
 		return $request_path;
 	}
@@ -153,7 +154,7 @@ class PAC_Preview {
 	 */
 	private static function asset_handle( PAC_File $file, $asset_type ) {
 		$hash = substr( hash( 'sha256', $file->relative_path ), 0, 12 );
-		return 'pac-preview-' . $hash . '-' . $asset_type;
+		return 'pac-preview-' . $hash . '-' . sanitize_key( $asset_type );
 	}
 
 	/**
