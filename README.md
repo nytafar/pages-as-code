@@ -338,6 +338,38 @@ The validator checks for:
 
 Exit codes: `0` = ok, `1` = fatal issues (or warnings with `--strict`).
 
+### Preview a PAC file before push
+
+The plugin also exposes a WordPress-backed preview route for any PAC file:
+
+```text
+/preview/about
+/preview/products/shovel-2b
+```
+
+The path maps directly to a file under the configured pages root, with `.html`
+added automatically when omitted:
+
+- `/preview/about` → `<pages-root>/about.html`
+- `/preview/products/shovel-2b` → `<pages-root>/products/shovel-2b.html`
+
+Preview uses the same parser as `wp pac push`, so it respects:
+
+- YAML front matter for `title`
+- sibling or front-matter-defined `css` / `js`
+- path traversal protection under the configured pages root
+
+The default preview shell is a minimal plugin-owned template that calls
+`wp_head()` / `wp_footer()` and prints the PAC file body inside `<main>`.
+To override it, create:
+
+```text
+<pages-root>/preview.php
+```
+
+This lets a project keep a minimal site-specific preview wrapper in the PAC
+directory without editing the plugin.
+
 ### Pull a post from WordPress
 
 ```bash
