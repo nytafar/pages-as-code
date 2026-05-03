@@ -93,9 +93,8 @@ class PAC_Preview {
 			}
 		}
 
-		if ( ! preg_match( '/\.html$/i', $request_path ) ) {
-			$request_path .= '.html';
-		}
+		$request_path  = preg_replace( '/\.html$/i', '', $request_path );
+		$request_path .= '.html';
 
 		return $request_path;
 	}
@@ -211,7 +210,7 @@ class PAC_Preview {
 			false !== $override_real &&
 			false !== $root_real &&
 			is_readable( $override_real ) &&
-			0 === strpos( $override_real, $root_real . '/' )
+			0 === strpos( $override_real, $root_real . DIRECTORY_SEPARATOR )
 		) {
 			return $override_real;
 		}
