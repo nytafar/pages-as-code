@@ -51,11 +51,13 @@ class PAC_Preview {
 		$relative_path = self::normalize_request_path( $request_path );
 		if ( is_wp_error( $relative_path ) ) {
 			self::render_error( $relative_path, '', 400 );
+			return;
 		}
 
 		$file = PAC_File::parse( $relative_path );
 		if ( is_wp_error( $file ) ) {
 			self::render_error( $file, $relative_path, 404 );
+			return;
 		}
 
 		self::enqueue_assets( $file );
@@ -123,7 +125,10 @@ class PAC_Preview {
 			return;
 		}
 
-		$version = (string) filemtime( $absolute );
+		$version = filemtime( $absolute );
+		if ( false === $version ) {
+			$version = null;
+		}
 
 		if ( 'script' === $type ) {
 			wp_enqueue_script( $handle, $url, array(), $version, true );
