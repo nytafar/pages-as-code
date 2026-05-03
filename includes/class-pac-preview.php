@@ -94,7 +94,7 @@ class PAC_Preview {
 		}
 
 		if ( preg_match( '/\.html$/i', $request_path ) && ! preg_match( '/\.html$/', $request_path ) ) {
-			return new WP_Error( 'pac_invalid_preview_extension', 'Preview files must use a lowercase .html extension.' );
+			return new WP_Error( 'pac_invalid_preview_extension', 'Preview files with a .html extension must use lowercase .html.' );
 		}
 
 		if ( ! preg_match( '/\.html$/', $request_path ) ) {
@@ -209,6 +209,10 @@ class PAC_Preview {
 	 */
 	private static function locate_template() {
 		$override               = pac_pages_root() . '/preview.php';
+		if ( is_link( $override ) ) {
+			return PAC_PLUGIN_DIR . 'templates/preview.php';
+		}
+
 		$resolved_override_path = realpath( $override );
 		$resolved_root_path     = realpath( pac_pages_root() );
 		if (
