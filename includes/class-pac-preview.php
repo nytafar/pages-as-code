@@ -211,7 +211,8 @@ class PAC_Preview {
 			false !== $override_real &&
 			false !== $root_real &&
 			is_readable( $override_real ) &&
-			0 === strpos( $override_real, $root_real . DIRECTORY_SEPARATOR )
+			$root_real === dirname( $override_real ) &&
+			'preview.php' === basename( $override_real )
 		) {
 			return $override_real;
 		}

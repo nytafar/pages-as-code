@@ -7,7 +7,7 @@
  * Available variables:
  * - $pac_preview_title
  * - $pac_preview_relative_path
- * - $pac_preview_body
+ * - $pac_preview_body (pre-rendered Gutenberg block markup from a PAC file)
  * - $pac_preview_error
  *
  * @package Pages_as_Code
