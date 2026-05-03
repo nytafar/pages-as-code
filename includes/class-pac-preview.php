@@ -86,6 +86,13 @@ class PAC_Preview {
 			return new WP_Error( 'pac_empty_preview_path', 'Preview path is empty.' );
 		}
 
+		$segments = explode( '/', $request_path );
+		foreach ( $segments as $segment ) {
+			if ( '' === $segment || '.' === $segment || '..' === $segment ) {
+				return new WP_Error( 'pac_invalid_preview_path', 'Preview path is invalid.' );
+			}
+		}
+
 		if ( ! preg_match( '/\.html$/i', $request_path ) ) {
 			$request_path .= '.html';
 		}
