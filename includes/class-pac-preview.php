@@ -106,8 +106,8 @@ class PAC_Preview {
 	 * @param PAC_File $file Parsed PAC file.
 	 */
 	private static function enqueue_assets( PAC_File $file ) {
-		self::enqueue_asset( self::asset_handle( $file, 'css' ), $file->css_path, 'style' );
-		self::enqueue_asset( self::asset_handle( $file, 'js' ), $file->js_path, 'script' );
+		self::enqueue_asset( self::asset_handle( $file, 'css' ), $file->css_path, 'css' );
+		self::enqueue_asset( self::asset_handle( $file, 'js' ), $file->js_path, 'js' );
 	}
 
 	/**
@@ -115,7 +115,7 @@ class PAC_Preview {
 	 *
 	 * @param string      $handle Asset handle.
 	 * @param string|null $path   Absolute asset path.
-	 * @param string      $type   Asset type: style or script.
+	 * @param string      $type   Asset type: css or js.
 	 */
 	private static function enqueue_asset( $handle, $path, $type ) {
 		if ( empty( $path ) ) {
@@ -134,7 +134,7 @@ class PAC_Preview {
 			$version = null;
 		}
 
-		if ( 'script' === $type ) {
+		if ( 'js' === $type ) {
 			wp_enqueue_script( $handle, $url, array(), $version, true );
 			return;
 		}
@@ -144,6 +144,9 @@ class PAC_Preview {
 
 	/**
 	 * Build a stable preview asset handle for a file.
+	 *
+	 * The shortened hash keeps handles deterministic per PAC path while avoiding
+	 * collisions between previews for different files with the same basename.
 	 *
 	 * @param PAC_File $file       Parsed PAC file.
 	 * @param string   $asset_type Asset suffix, e.g. css or js.
@@ -201,9 +204,16 @@ class PAC_Preview {
 	 * @return string Absolute template path.
 	 */
 	private static function locate_template() {
-		$override = pac_pages_root() . '/preview.php';
-		if ( is_readable( $override ) ) {
-			return $override;
+		$override      = pac_pages_root() . '/preview.php';
+		$override_real = realpath( $override );
+		$root_real     = realpath( pac_pages_root() );
+		if (
+			false !== $override_real &&
+			false !== $root_real &&
+			is_readable( $override_real ) &&
+			0 === strpos( $override_real, $root_real . '/' )
+		) {
+			return $override_real;
 		}
 
 		return PAC_PLUGIN_DIR . 'templates/preview.php';
