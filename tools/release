@@ -1,7 +1,7 @@
 #!/usr/bin/env php
 <?php
 /**
- * Kaupang suite release command. (kit v2, docs/kit/)
+ * Kaupang suite release command. (kit v2.1, docs/kit/)
  *
  * Usage (from the plugin root, as the site user):
  *   tools/release patch|minor|major|x.y.z [--push]
@@ -30,9 +30,9 @@ function fail( string $msg ): void {
 $bump = $argv[1] ?? '';
 $push = in_array( '--push', $argv, true );
 $root = run( 'git rev-parse --show-toplevel' );
-$slug = basename( $root );
-$main = "{$slug}.php";
 chdir( $root );
+$main = run( 'git config kit.main', false ) ?: basename( $root ) . '.php'; // same override as the hook
+$slug = basename( $main, '.php' );
 
 if ( 'tools' !== run( 'git config core.hooksPath', false ) || ! is_executable( 'tools/pre-commit' ) ) {
 	fail( 'the kit hook is not installed (tools/pre-commit + `git config core.hooksPath tools`).' );
@@ -81,7 +81,25 @@ if ( is_dir( 'languages' ) ) {
 		if ( glob( 'languages/*.po' ) ) {
 			run( 'wp i18n make-mo languages --skip-plugins --skip-themes' );
 			run( 'wp i18n make-php languages --skip-plugins --skip-themes' );
+			array_map( 'unlink', glob( "languages/{$td[1]}-*-*.json" ) ); // rebuilt below; stale ones would linger
 			run( 'wp i18n make-json languages --no-purge --skip-plugins --skip-themes' );
+			// WP-CLI make-json strips "?min.js" with an unescaped dot (assets/admin.js → assets/a.js) and hashes the wrong path.
+			foreach ( glob( "languages/{$td[1]}-*-*.json" ) as $json ) {
+				$j   = json_decode( file_get_contents( $json ), true );
+				$rel = $j['source'] ?? '';
+				if ( '' === $rel || is_file( $rel ) ) {
+					continue;
+				}
+				$real = glob( substr( $rel, 0, -3 ) . '?min.js' );
+				if ( 1 === count( $real ) ) {
+					$j['source'] = $real[0];
+					$locale      = preg_replace( '/^.*?-([a-z]{2,3}(?:_[A-Z]{2})?)-[0-9a-f]{32}\.json$/', '$1', basename( $json ) );
+					file_put_contents( "languages/{$td[1]}-{$locale}-" . md5( $real[0] ) . '.json', json_encode( $j, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ) );
+					unlink( $json );
+				} else {
+					fwrite( STDERR, "release: warning: {$json} points at missing {$rel}; check it by hand.\n" );
+				}
+			}
 		}
 		$stage[] = 'languages';
 	}

@@ -1,7 +1,7 @@
 #!/usr/bin/env php
 <?php
 /**
- * Kaupang suite pre-commit hook: one version, synced everywhere. (kit v2, docs/kit/)
+ * Kaupang suite pre-commit hook: one version, synced everywhere. (kit v2.1, docs/kit/)
  *
  * The plugin header `Version:` in <repo-folder>.php is the single source of truth. On every commit:
  *   1. syncs it into the *_VERSION constant, readme.txt `Stable tag:`, readme.meta.json `stableTag`,

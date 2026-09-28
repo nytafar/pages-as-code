@@ -42,6 +42,103 @@ Pages as Code requires WP-CLI 2.0 or later.
 3. Create `.html` files in `wp-content/pages/` (or your configured pages root).
 4. Push: `wp pac push <file> --user=<admin_id>`
 
+== Usage ==
+
+= CLI reference =
+
+    wp pac push <file> [--post-type=<slug>] [--format=<format>] [--user=<id>]
+    wp pac pull <slug> [--post-type=<slug>] [--dir=<dir>] [--force] [--revision-suffix] [--format=<format>] [--user=<id>]
+    wp pac validate <file> [--strict] [--user=<id>]
+
+| Command | Description |
+|---------|-------------|
+| `wp pac push <file>` | Push a file to WordPress as a post |
+| `wp pac pull <slug>` | Pull a WordPress post to a local file. Accepts `<type>/<slug>` shorthand |
+| `wp pac validate <file>` | Validate block markup and return a JSON diagnostic report |
+
+| Argument | Description |
+|----------|-------------|
+| `<file>` | Path relative to the pages root (push, validate) |
+| `<slug>` | Post slug, or `<type>/<slug>` shorthand (pull) |
+| `--post-type` | Post type slug. Wins over front-matter `type:` and over the path-style shorthand. Defaults to `page`. |
+| `--format` | `human` (default) or `json` |
+| `--dir` | Subdirectory to write pulled file into. Overrides per-type default. (pull only) |
+| `--force` | Overwrite existing file (pull only) |
+| `--revision-suffix` | Append revision ID to filename, e.g. `about.r123.html` (pull only) |
+| `--strict` | Treat warnings as fatal for exit code (validate only) |
+| `--user` | WordPress user ID with the post type's required capability |
+
+= Push behavior =
+
+| Scenario | Action | Output |
+|----------|--------|--------|
+| Post doesn't exist | `wp_insert_post()` | `Created page "About" (ID 42, slug: about).` |
+| Post exists, file unchanged | Skip (no-op) | `Page "About" unchanged, skipping.` |
+| Post exists, file changed | `wp_update_post()` + revision | `Updated page "About" (ID 42, slug: about).` |
+
+The output substitutes the actual post type — `Created product "…"`, `Updated attribute_page "…"`, etc. Lookup is `(slug, post_type)`, so the same slug can exist under different post types without collision.
+
+= Validate block markup =
+
+    # Validate a page file — always outputs JSON
+    wp pac validate about.html --user=1
+
+    # Strict mode — warnings also cause exit code 1
+    wp pac validate about.html --user=1 --strict
+
+    # Filter issues with jq
+    wp pac validate about.html --user=1 | jq '.issues[] | {path, blockName, rule, message}'
+
+The validator checks for:
+- Bare HTML outside block comments (silently lost in the editor)
+- Invalid nesting (e.g. `core/button` outside `core/buttons`)
+- Missing wrapper elements and classes (e.g. image without `wp-block-image`)
+- Heading level attribute vs HTML tag mismatches
+- Unknown/unsupported block types (warning, not fatal)
+
+Exit codes: `0` = ok, `1` = fatal issues (or warnings with `--strict`).
+
+= Pull a post from WordPress =
+
+    # Pull a page by slug — writes to <pages-root>/about.html
+    wp pac pull about --user=1
+
+    # Pull a non-page post — path-style shorthand selects the type
+    wp pac pull product/cacao-200g --user=1
+    # Writes <pages-root>/products/cacao-200g.html (per-type default dir)
+
+    # Equivalent with the explicit flag
+    wp pac pull cacao-200g --post-type=product --user=1
+
+    # Pull into a subdirectory (overrides the per-type default)
+    wp pac pull about --dir=drafts/ --user=1
+
+    # Pull with revision ID in filename (versioned snapshot)
+    wp pac pull about --revision-suffix --user=1
+    # Writes about.r456.html — pushable back with slug 'about'
+
+    # Force overwrite existing file
+    wp pac pull about --force --user=1
+
+    # JSON output for scripting
+    wp pac pull about --force --format=json --user=1
+
+Pulled files include `pulled_revision` and `pulled_gmt` in front matter for revision tracking. These fields are ignored on push. The `type:` front-matter field is only emitted for non-page posts so that pulled `page` files round-trip byte-for-byte unchanged.
+
+= Finding admin users =
+
+The `--user` flag is required in most hosting environments:
+
+    wp user list --role=administrator --fields=ID,user_login
+
+= Multi-page ordering =
+
+Push parent pages before children:
+
+    wp pac push company.html --user=1
+    wp pac push company/about.html --user=1
+    wp pac push company/team.html --user=1
+
 == Frequently Asked Questions ==
 
 = What file format does Pages as Code use? =

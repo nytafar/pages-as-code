@@ -1,23 +1,24 @@
 #!/usr/bin/env php
 <?php
 /**
- * Kaupang suite readme.txt generator. (kit v2, docs/kit/)
+ * Kaupang suite readme.txt generator. (kit v2.1, docs/kit/)
  *
  * readme.txt is a build artefact: never edit it. Every fact has one source —
  *   plugin header (<folder>.php) : name, version (Stable tag), Requires at least, Requires PHP, License, Description
- *   README.md                    : prose — ## Description, ## Installation, ## FAQ, ## Screenshots, ## Upgrade Notice
+ *   README.md                    : prose — ## Description, ## Installation, ## Usage, ## FAQ, ## Screenshots, ## Upgrade Notice
  *   CHANGELOG.md                 : history (Keep a Changelog; [Unreleased] is left out)
  *   readme.meta.json (optional)  : registry-only fields — contributors, tags, testedUpTo, shortDescription, donateLink
- * `Tested up to` defaults to the major.minor of the WordPress install the plugin sits in (the hook runs on staging).
+ * `Tested up to` defaults to the major.minor of the WordPress install the plugin sits in (the hook runs on staging),
+ * else to the last committed readme.txt value.
  *
  * Usage: php tools/generate-readme.php [--index]   (--index reads staged content; the pre-commit hook uses it)
  * Exits 1 on missing required facts; prints warnings for wordpress.org limits.
  */
 
 $root  = dirname( __DIR__ );
-$slug  = basename( $root );
 $index = in_array( '--index', $argv, true );
 chdir( $root );
+$mainf = trim( (string) shell_exec( 'git config kit.main 2>/dev/null' ) ) ?: basename( $root ) . '.php'; // same override as the hook
 
 function src( string $file ): ?string {
 	global $index;
@@ -36,14 +37,14 @@ function warn( string $msg ): void {
 }
 
 // ── Header (same parsing rules as WordPress' get_file_data) ─────────────
-$main = src( "{$slug}.php" ) ?? fail( "{$slug}.php not found." );
+$main = src( $mainf ) ?? fail( "{$mainf} not found (set `git config kit.main <file>.php` if the folder isn't named after the plugin)." );
 $head = substr( $main, 0, 8192 );
 $h    = array();
 foreach ( array( 'Plugin Name', 'Description', 'Version', 'Requires at least', 'Requires PHP', 'License', 'License URI', 'Tested up to' ) as $f ) {
 	$h[ $f ] = preg_match( '/^(?:[ \t]*<\?php)?[ \t\/*#@]*' . preg_quote( $f, '/' ) . ':(.*)$/mi', $head, $m ) ? trim( preg_replace( '/\s*(?:\*\/|\?>).*/', '', $m[1] ) ) : '';
 }
 foreach ( array( 'Plugin Name', 'Version', 'Description', 'License' ) as $f ) {
-	'' === $h[ $f ] && fail( "header field '{$f}' is missing in {$slug}.php." );
+	'' === $h[ $f ] && fail( "header field '{$f}' is missing in {$mainf}." );
 }
 
 $meta = json_decode( src( 'readme.meta.json' ) ?? '{}', true ) ?: array();
@@ -61,6 +62,9 @@ $tested = $meta['testedUpTo'] ?? $h['Tested up to'];
 if ( '' === $tested && is_file( $root . '/../../../wp-includes/version.php' ) ) {
 	preg_match( "/\\\$wp_version\s*=\s*'(\d+\.\d+)/", file_get_contents( $root . '/../../../wp-includes/version.php' ), $v );
 	$tested = $v[1] ?? '';
+}
+if ( '' === $tested && preg_match( '/^Tested up to:[ \t]*(\S+)/mi', (string) shell_exec( 'git show HEAD:readme.txt 2>/dev/null' ), $v ) ) {
+	$tested = $v[1]; // outside a WordPress install: keep the last committed value rather than dropping the field
 }
 
 $short = $meta['shortDescription'] ?? $h['Description'];
@@ -123,6 +127,7 @@ $out[] = $short;
 $sections = array(
 	'Description'                => section( $md, array( 'Description' ) ) ?: $h['Description'],
 	'Installation'               => section( $md, array( 'Installation' ) ),
+	'Usage'                      => section( $md, array( 'Usage' ) ), // wordpress.org shows extra sections under "Other Notes"
 	'Frequently Asked Questions' => section( $md, array( 'FAQ', 'Frequently Asked Questions' ) ),
 	'Screenshots'                => section( $md, array( 'Screenshots' ) ),
 	'Changelog'                  => trim( $changelog ),
