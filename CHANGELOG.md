@@ -2,6 +2,11 @@
 
 All notable changes to Pages as Code will be documented in this file.
 
+## [Unreleased]
+
+### Changed
+- Adopted suite kit v1: `tools/pre-commit` is the kit version-sync hook (`git config core.hooksPath tools`); the header `Version:` is the single source, synced to `PAC_VERSION` and `readme.meta.json`. `readme.txt`'s changelog is now generated from CHANGELOG.md; README.md no longer keeps a copy.
+
 ## [1.9.0] - 2026-04-29
 
 ### Changed

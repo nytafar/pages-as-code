@@ -488,74 +488,18 @@ pages-as-code/
     pages-CLAUDE.md                Agent instructions (copied to pages root —
                                    skipped when pac_pages_root is filtered)
   tools/
-    generate-readme.php            Generates readme.txt from README.md
+    generate-readme.php            Generates readme.txt from README.md + CHANGELOG.md
+    pre-commit                     Suite kit version-sync hook (core.hooksPath tools)
+  CHANGELOG.md                     The one changelog (Keep a Changelog)
   CLAUDE.md                        Plugin development instructions
   README.md                        This file (canonical docs)
   readme.meta.json                 WordPress readme metadata
-  readme.txt                       Generated from README.md (do not edit)
+  readme.txt                       Generated (do not edit)
 ```
 
 ## Changelog
 
-### 1.8.0
-
-- `pac_post_types` filter — register additional post types (e.g. WooCommerce `product`, custom CPTs) for management via `wp pac push`/`pull`. Per-type config supports `dir` (default landing dir for pull) and `capability` (required cap). `page` is always implicit.
-- `type:` front matter field — declares the post type (default `page`). Validated against the registry.
-- `--post-type=<slug>` flag on `wp pac push` and `wp pac pull`. Wins over front-matter `type:` and the path-style shorthand.
-- Path-style pull shorthand — `wp pac pull product/cacao-200g` is equivalent to `wp pac pull cacao-200g --post-type=product`.
-- `pac_pages_root` filter — themes can override the managed files directory. Registering the filter signals consent that the consumer manages its own `CLAUDE.md` / `.claude/skills/`, so activation skips that scaffolding (the directory itself is still created).
-- Internal helpers exposed for theme/plugin consumers: `pac_pages_root()`, `pac_post_types()`, `pac_post_type_config()`, `pac_resolve_post_type()`, `pac_post_type_capability()`.
-- Asset enqueue and capability checks now apply per-post-type (no more hardcoded `is_singular('page')` / `edit_pages`).
-- Existing `page` files continue to push/pull byte-for-byte unchanged — no `type:` line is emitted on pulled pages, and bare files default to type `page` with no migration required.
-
-### 1.7.0
-
-- `wp pac pull <slug>` command to extract WordPress pages into `.html` files
-- Revision tracking via `pulled_revision` and `pulled_gmt` front matter fields
-- `--dir`, `--force`, `--revision-suffix` flags for flexible pull workflows
-- `PAC_Serializer` class for reusable YAML + body serialization
-- User-defined meta round-trip via `_pac_meta_keys` tracking on push
-- Revision-suffixed filenames (`about.r123.html`) push back with correct slug
-
-### 1.6.0
-
-- `wp pac validate <file>` command for block markup validation with JSON diagnostic reports
-- `PAC_Validator` service with grammar, nesting, wrapper, and per-block validation rules
-- Detects bare HTML outside blocks, heading level mismatches, invalid nesting, missing wrapper classes
-- `--strict` flag treats warnings as fatal
-- Designed for agent tuning feedback loops and future push integration
-
-### 1.5.0
-
-- Sibling CSS/JS asset support with three-tier resolution
-- Page-specific CSS enqueued on frontend and block editor
-- Page-specific JS enqueued on frontend only
-- New `PAC_Assets` class for WordPress-native enqueue
-- Asset path safety validation under `WP_CONTENT_DIR`
-- CLI reports resolved asset paths after push
-
-### 1.3.0
-
-- Consolidated into one orchestrator skill with progressive disclosure
-- Added shared page standards, generate workflow, and publish workflow references
-- Added validation script and starter page template
-- GridPane commands now fallback-only when standard `wp` CLI fails
-
-### 1.2.0
-
-- Restructured skills into proper Claude Code `.claude/skills/` format
-- Activation scaffolds full skill tree in pages directory
-
-### 1.1.0
-
-- Added CLAUDE.md agent instructions and skill reference
-- Added publishing workflow documentation
-
-### 1.0.0
-
-- Initial release: `wp pac push <file>` command
-- YAML front matter parsing, SHA-256 hashing, parent resolution
-- Path traversal protection, capability checks, JSON output
+See [CHANGELOG.md](CHANGELOG.md).
 
 ## Requirements
 

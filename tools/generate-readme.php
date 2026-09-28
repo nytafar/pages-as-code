@@ -1,11 +1,12 @@
 #!/usr/bin/env php
 <?php
 /**
- * Generate WordPress-compliant readme.txt from README.md + readme.meta.json.
+ * Generate WordPress-compliant readme.txt from README.md + CHANGELOG.md + readme.meta.json.
  *
  * Usage: php tools/generate-readme.php
  *
- * Reads README.md as the canonical source and readme.meta.json for WP metadata.
+ * Reads README.md as the canonical source, CHANGELOG.md (Keep a Changelog) for the
+ * changelog and readme.meta.json for WP metadata.
  * Outputs a simplified readme.txt that passes the WordPress.org validator.
  *
  * This script is run automatically by the pre-commit hook.
@@ -14,6 +15,7 @@
 $root = dirname( __DIR__ );
 $meta_file = $root . '/readme.meta.json';
 $md_file   = $root . '/README.md';
+$cl_file   = $root . '/CHANGELOG.md';
 $out_file  = $root . '/readme.txt';
 
 if ( ! file_exists( $meta_file ) ) {
@@ -74,14 +76,17 @@ function convert_faq( string $text ): string {
 }
 
 /**
- * Convert changelog from markdown ### headings to WP = heading = format.
+ * Convert CHANGELOG.md (Keep a Changelog) to WP readme format.
+ * Drops the title and [Unreleased]; ## [1.3.0] - date -> = 1.3.0 =; ### Added -> **Added**.
  */
 function convert_changelog( string $text ): string {
-	// ### 1.3.0 -> = 1.3.0 =
-	$text = preg_replace( '/^###\s+(.+)$/m', '= $1 =', $text );
+	// Everything before the first released version (title, intro, [Unreleased]) goes.
+	$text = preg_match( '/^##\s*\[\d.*/ms', $text, $m ) ? $m[0] : '';
+	$text = preg_replace( '/^##\s*\[([^\]]+)\].*$/m', '= $1 =', $text );
+	$text = preg_replace( '/^###\s+(.+)$/m', '**$1**', $text );
 	// - item -> * item
 	$text = preg_replace( '/^- /m', '* ', $text );
-	return $text;
+	return trim( $text );
 }
 
 // Build output.
@@ -143,12 +148,12 @@ $out[] = '';
 $out[] = 'No screenshots. Pages as Code is a CLI-only tool with no admin interface.';
 
 // Changelog.
-$changelog = section( $md, 'Changelog' );
+$changelog = file_exists( $cl_file ) ? convert_changelog( file_get_contents( $cl_file ) ) : '';
 if ( $changelog ) {
 	$out[] = '';
 	$out[] = '== Changelog ==';
 	$out[] = '';
-	$out[] = strip_github( convert_changelog( $changelog ) );
+	$out[] = strip_github( $changelog );
 }
 
 $result = implode( "\n", $out ) . "\n";

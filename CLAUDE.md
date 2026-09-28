@@ -32,12 +32,13 @@ tools/generate-readme.php    Generates readme.txt from README.md + readme.meta.j
 
 ## Version bumping
 
-When releasing a new version, update all three locations:
-1. `pages-as-code.php` — plugin header `Version:` and `PAC_VERSION` constant
-2. `readme.meta.json` — `stableTag` field
-3. `CHANGELOG.md` — add new version entry
+Suite kit v1 ([`../docs/kit/README.md`](../docs/kit/README.md)); hook install per clone: `git config core.hooksPath tools`.
+1. Edit only the header `Version:` in `pages-as-code.php` — it is the single source.
+2. In `CHANGELOG.md`, rename `## [Unreleased]` to `## [x.y.z] - YYYY-MM-DD` and open a new empty `## [Unreleased]`.
+3. Commit. `tools/pre-commit` syncs `PAC_VERSION` and `readme.meta.json` `stableTag`, regenerates `readme.txt`
+   (changelog from CHANGELOG.md), and refuses a bump without its CHANGELOG section. Then tag `vx.y.z`.
 
-The readme.txt is regenerated automatically by the pre-commit hook.
+Between releases every behaviour change adds a line under `## [Unreleased]`.
 
 ## Conventions
 
@@ -75,7 +76,7 @@ python3 ~/.claude/skills/skill-creator/scripts/quick_validate.py .claude/skills/
 
 ## Readme pipeline
 
-README.md is the source of truth. The pre-commit hook runs `tools/generate-readme.php` to regenerate readme.txt from README.md + readme.meta.json, then stages the result.
+README.md is the source of truth (changelog: CHANGELOG.md). The pre-commit hook runs `tools/generate-readme.php` on every commit to regenerate readme.txt from README.md + CHANGELOG.md + readme.meta.json, then stages the result.
 
 To regenerate manually: `php tools/generate-readme.php`
 

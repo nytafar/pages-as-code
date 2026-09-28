@@ -1,9 +1,111 @@
-#!/bin/sh
-# Pre-commit hook: regenerate readme.txt from README.md + readme.meta.json
-# Install: cp tools/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+#!/usr/bin/env php
+<?php
+/**
+ * Kaupang suite pre-commit hook: one version, synced everywhere. (kit v1, docs/kit/)
+ *
+ * The plugin header `Version:` in <repo-folder>.php is the single source of truth. On every commit:
+ *   1. syncs it into the *_VERSION constant, readme.txt `Stable tag:`, readme.meta.json `stableTag`,
+ *      package.json `version` and any tracked block.json that has a `version` key;
+ *   2. regenerates readme.txt when tools/generate-readme.php + readme.meta.json exist;
+ *   3. refuses a version bump without a `## [x.y.z]` section in CHANGELOG.md (Keep a Changelog);
+ *   4. runs tools/pre-commit-check if present and executable (plugin-local checks, e.g. build --check).
+ *
+ * Install (per checkout, as the site user):  git config core.hooksPath tools
+ * Copied, not shared: keep every plugin's tools/pre-commit identical to docs/kit/pre-commit.
+ */
 
-# Only run if README.md or readme.meta.json are staged
-if git diff --cached --name-only | grep -qE '^(README\.md|readme\.meta\.json)$'; then
-  php tools/generate-readme.php
-  git add readme.txt
-fi
+function git( string $args, ?int &$code = null ): string {
+	exec( 'git ' . $args . ' 2>/dev/null', $out, $code );
+	return implode( "\n", $out );
+}
+/** Exact staged content of a tracked file, or null when it isn't in the index. */
+function staged( string $file ): ?string {
+	git( 'ls-files --error-unmatch -- ' . escapeshellarg( $file ), $code );
+	return 0 === $code ? (string) shell_exec( 'git show :' . escapeshellarg( $file ) ) : null;
+}
+function fail( string $msg ): void {
+	fwrite( STDERR, "pre-commit: {$msg}\n" );
+	exit( 1 );
+}
+
+$root = git( 'rev-parse --show-toplevel' );
+$slug = basename( $root );
+$main = "{$slug}.php";
+chdir( $root );
+
+if ( ! is_file( $main ) ) {
+	fwrite( STDERR, "pre-commit: {$main} not found, skipping version sync.\n" );
+	exit( 0 );
+}
+
+$version_re = '/^[ \t\/*#@]*Version:[ \t]*(\S+)/mi';
+if ( ! preg_match( $version_re, (string) staged( $main ), $m ) ) {
+	fail( "no 'Version:' header in {$main}." );
+}
+$version = $m[1];
+if ( ! preg_match( '/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/', $version ) ) {
+	fail( "header Version '{$version}' is not semver (x.y.z)." );
+}
+
+// file => [ regex, replacement ] — only rewritten when the file exists and the value differs.
+$targets = array(
+	$main              => array( "/(define\(\s*'[A-Z0-9_]+_VERSION'\s*,\s*')[^']*('\s*\))|(const\s+[A-Z0-9_]+_VERSION\s*=\s*')[^']*(')/", null ),
+	'readme.txt'       => array( '/^(Stable tag:[ \t]*).*$/mi', '${1}' . $version ),
+	'readme.meta.json' => array( '/("stableTag"\s*:\s*")[^"]*(")/', '${1}' . $version . '${2}' ),
+	'package.json'     => array( '/("version"\s*:\s*")[^"]*(")/', '${1}' . $version . '${2}' ),
+);
+foreach ( array_filter( explode( "\n", git( 'ls-files -- "*block.json"' ) ) ) as $bj ) {
+	$targets[ $bj ] = array( '/("version"\s*:\s*")[^"]*(")/', '${1}' . $version . '${2}' );
+}
+
+// Validate everything before writing anything, so a refused commit leaves the tree untouched.
+
+// A bump (header differs from HEAD, or the file is new) needs its changelog section.
+$head = git( 'show HEAD:' . escapeshellarg( $main ), $code );
+$prev = ( 0 === $code && preg_match( $version_re, $head, $h ) ) ? $h[1] : null;
+if ( $prev !== $version ) {
+	if ( ! preg_match( '/^##\s*\[' . preg_quote( $version, '/' ) . '\]/m', (string) staged( 'CHANGELOG.md' ) ) ) {
+		fail( "version " . ( $prev ?? '(new)' ) . " → {$version} but the staged CHANGELOG.md has no '## [{$version}]' section." );
+	}
+}
+
+// Sync the *staged* content (that's what gets committed); the working tree must match it for files we touch.
+$writes = array();
+foreach ( $targets as $file => list( $re, $rep ) ) {
+	$src = staged( $file );
+	if ( null === $src ) {
+		continue; // not tracked
+	}
+	$new = null === $rep
+		? preg_replace_callback( $re, fn( $x ) => '' !== $x[1] ? $x[1] . $version . $x[2] : $x[3] . $version . $x[4], $src, 1 )
+		: preg_replace( $re, $rep, $src, 1 );
+	if ( $new === $src ) {
+		continue;
+	}
+	git( 'diff --quiet -- ' . escapeshellarg( $file ), $dirty );
+	if ( 0 !== $dirty ) {
+		fail( "{$file} needs a version sync but has unstaged changes; stage or stash them first." );
+	}
+	$writes[ $file ] = $new;
+}
+
+if ( is_file( 'tools/pre-commit-check' ) && is_executable( 'tools/pre-commit-check' ) ) {
+	passthru( './tools/pre-commit-check', $code );
+	if ( 0 !== $code ) {
+		fail( 'tools/pre-commit-check failed.' );
+	}
+}
+
+foreach ( $writes as $file => $new ) {
+	file_put_contents( $file, $new );
+	git( 'add -- ' . escapeshellarg( $file ) );
+}
+
+if ( is_file( 'tools/generate-readme.php' ) && is_file( 'readme.meta.json' ) ) {
+	passthru( 'php tools/generate-readme.php', $code );
+	if ( 0 !== $code ) {
+		fail( 'tools/generate-readme.php failed.' );
+	}
+	git( 'add -- readme.txt' );
+}
+exit( 0 );
