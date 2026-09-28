@@ -1,0 +1,100 @@
+#!/usr/bin/env php
+<?php
+/**
+ * Kaupang suite release command. (kit v2, docs/kit/)
+ *
+ * Usage (from the plugin root, as the site user):
+ *   tools/release patch|minor|major|x.y.z [--push]
+ *
+ * 1. refuses if the main file or CHANGELOG.md has uncommitted changes, or [Unreleased] is empty;
+ * 2. bumps the header `Version:`; turns `## [Unreleased]` into `## [x.y.z] - today` and opens a new empty one;
+ * 3. if languages/ exists and WP-CLI is available: regenerates the .pot, merges it into every .po, rebuilds .mo/.l10n.php/.json;
+ * 4. commits "Release x.y.z" (the pre-commit hook syncs constants and regenerates readme.txt) and tags vx.y.z;
+ * 5. with --push: pushes the branch and the tag.
+ * Only files it changed are staged; anyone else's work in progress stays out of the release commit.
+ */
+
+function run( string $cmd, bool $must = true ): string {
+	exec( $cmd . ' 2>&1', $out, $code );
+	if ( $must && 0 !== $code ) {
+		fwrite( STDERR, "release: `{$cmd}` failed:\n" . implode( "\n", $out ) . "\n" );
+		exit( 1 );
+	}
+	return implode( "\n", $out );
+}
+function fail( string $msg ): void {
+	fwrite( STDERR, "release: {$msg}\n" );
+	exit( 1 );
+}
+
+$bump = $argv[1] ?? '';
+$push = in_array( '--push', $argv, true );
+$root = run( 'git rev-parse --show-toplevel' );
+$slug = basename( $root );
+$main = "{$slug}.php";
+chdir( $root );
+
+if ( 'tools' !== run( 'git config core.hooksPath', false ) || ! is_executable( 'tools/pre-commit' ) ) {
+	fail( 'the kit hook is not installed (tools/pre-commit + `git config core.hooksPath tools`).' );
+}
+foreach ( array( $main, 'CHANGELOG.md' ) as $f ) {
+	'' !== run( 'git status --porcelain -- ' . escapeshellarg( $f ) ) && fail( "{$f} has uncommitted changes; commit or stash them first." );
+}
+
+$src = file_get_contents( $main );
+preg_match( '/^([ \t\/*#@]*Version:[ \t]*)(\d+)\.(\d+)\.(\d+)\S*/mi', $src, $m ) || fail( "no semver 'Version:' header in {$main}." );
+list( , , $ma, $mi, $pa ) = $m;
+$current = "{$ma}.{$mi}.{$pa}";
+$version = match ( $bump ) {
+	'major' => ( $ma + 1 ) . '.0.0',
+	'minor' => "{$ma}." . ( $mi + 1 ) . '.0',
+	'patch' => "{$ma}.{$mi}." . ( $pa + 1 ),
+	default => preg_match( '/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/', $bump ) ? $bump : fail( 'usage: tools/release patch|minor|major|x.y.z [--push]' ),
+};
+'' !== run( 'git tag -l ' . escapeshellarg( "v{$version}" ) ) && fail( "tag v{$version} already exists." );
+
+$log = is_file( 'CHANGELOG.md' ) ? file_get_contents( 'CHANGELOG.md' ) : fail( 'CHANGELOG.md not found.' );
+preg_match( '/^##[ \t]+\[Unreleased\][^\n]*\n(.*?)(?=^##[ \t]+\[|\z)/msi', $log, $u ) || fail( 'CHANGELOG.md has no ## [Unreleased] section.' );
+'' === trim( preg_replace( '/^###.*$/m', '', $u[1] ) ) && fail( '[Unreleased] is empty — nothing to release.' );
+
+$branch = run( 'git branch --show-current', false );
+if ( ! in_array( $branch, array( 'main', 'master' ), true ) ) {
+	fwrite( STDERR, "release: warning: releasing from branch '{$branch}', not main/master.\n" );
+}
+
+// Bump + changelog.
+file_put_contents( $main, preg_replace( '/^([ \t\/*#@]*Version:[ \t]*)\S+/mi', '${1}' . $version, $src, 1 ) );
+file_put_contents( 'CHANGELOG.md', preg_replace( '/^##[ \t]+\[Unreleased\][^\n]*$/mi', "## [Unreleased]\n\n## [{$version}] - " . trim( run( 'date +%F' ) ) /* the system's local date, not PHP's UTC default */, $log, 1 ) );
+$stage = array( $main, 'CHANGELOG.md' );
+
+// Translations.
+if ( is_dir( 'languages' ) ) {
+	if ( '' === run( 'command -v wp', false ) ) {
+		fwrite( STDERR, "release: warning: languages/ exists but WP-CLI is not on PATH; catalogues not regenerated.\n" );
+	} else {
+		preg_match( '/^[ \t\/*#@]*Text Domain:[ \t]*(\S+)/mi', $src, $td ) || fail( "languages/ exists but {$main} has no Text Domain." );
+		$pot = "languages/{$td[1]}.pot";
+		run( 'wp i18n make-pot . ' . escapeshellarg( $pot ) . ' --slug=' . escapeshellarg( $slug ) . ' --domain=' . escapeshellarg( $td[1] ) . ' --exclude=node_modules,vendor,tests,tools,src --skip-plugins --skip-themes' );
+		foreach ( glob( 'languages/*.po' ) as $po ) {
+			run( 'wp i18n update-po ' . escapeshellarg( $pot ) . ' ' . escapeshellarg( $po ) . ' --skip-plugins --skip-themes' );
+		}
+		if ( glob( 'languages/*.po' ) ) {
+			run( 'wp i18n make-mo languages --skip-plugins --skip-themes' );
+			run( 'wp i18n make-php languages --skip-plugins --skip-themes' );
+			run( 'wp i18n make-json languages --no-purge --skip-plugins --skip-themes' );
+		}
+		$stage[] = 'languages';
+	}
+}
+
+run( 'git add -- ' . implode( ' ', array_map( 'escapeshellarg', $stage ) ) );
+run( 'git commit -m ' . escapeshellarg( "Release {$version}" ) );
+run( 'git tag -a ' . escapeshellarg( "v{$version}" ) . ' -m ' . escapeshellarg( "{$slug} {$version}" ) );
+echo "Released {$slug} {$current} → {$version} (tag v{$version}) on {$branch}.\n";
+
+if ( $push ) {
+	run( 'git push origin ' . escapeshellarg( $branch ) . ' ' . escapeshellarg( "v{$version}" ) );
+	echo "Pushed {$branch} + v{$version}.\n";
+} else {
+	echo "Not pushed. When ready: git push origin {$branch} v{$version}\n";
+}

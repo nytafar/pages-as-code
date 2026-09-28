@@ -1,163 +1,144 @@
 #!/usr/bin/env php
 <?php
 /**
- * Generate WordPress-compliant readme.txt from README.md + CHANGELOG.md + readme.meta.json.
+ * Kaupang suite readme.txt generator. (kit v2, docs/kit/)
  *
- * Usage: php tools/generate-readme.php
+ * readme.txt is a build artefact: never edit it. Every fact has one source —
+ *   plugin header (<folder>.php) : name, version (Stable tag), Requires at least, Requires PHP, License, Description
+ *   README.md                    : prose — ## Description, ## Installation, ## FAQ, ## Screenshots, ## Upgrade Notice
+ *   CHANGELOG.md                 : history (Keep a Changelog; [Unreleased] is left out)
+ *   readme.meta.json (optional)  : registry-only fields — contributors, tags, testedUpTo, shortDescription, donateLink
+ * `Tested up to` defaults to the major.minor of the WordPress install the plugin sits in (the hook runs on staging).
  *
- * Reads README.md as the canonical source, CHANGELOG.md (Keep a Changelog) for the
- * changelog and readme.meta.json for WP metadata.
- * Outputs a simplified readme.txt that passes the WordPress.org validator.
- *
- * This script is run automatically by the pre-commit hook.
+ * Usage: php tools/generate-readme.php [--index]   (--index reads staged content; the pre-commit hook uses it)
+ * Exits 1 on missing required facts; prints warnings for wordpress.org limits.
  */
 
-$root = dirname( __DIR__ );
-$meta_file = $root . '/readme.meta.json';
-$md_file   = $root . '/README.md';
-$cl_file   = $root . '/CHANGELOG.md';
-$out_file  = $root . '/readme.txt';
+$root  = dirname( __DIR__ );
+$slug  = basename( $root );
+$index = in_array( '--index', $argv, true );
+chdir( $root );
 
-if ( ! file_exists( $meta_file ) ) {
-	fwrite( STDERR, "Error: readme.meta.json not found.\n" );
+function src( string $file ): ?string {
+	global $index;
+	if ( $index ) {
+		exec( 'git ls-files --error-unmatch -- ' . escapeshellarg( $file ) . ' 2>/dev/null', $o, $code );
+		return 0 === $code ? (string) shell_exec( 'git show :' . escapeshellarg( $file ) ) : null;
+	}
+	return is_file( $file ) ? file_get_contents( $file ) : null;
+}
+function fail( string $msg ): void {
+	fwrite( STDERR, "generate-readme: {$msg}\n" );
 	exit( 1 );
 }
-if ( ! file_exists( $md_file ) ) {
-	fwrite( STDERR, "Error: README.md not found.\n" );
-	exit( 1 );
+function warn( string $msg ): void {
+	fwrite( STDERR, "generate-readme: warning: {$msg}\n" );
 }
 
-$meta = json_decode( file_get_contents( $meta_file ), true );
-$md   = file_get_contents( $md_file );
-
-/**
- * Extract a markdown section by ## heading.
- */
-function section( string $md, string $title ): string {
-	$escaped = preg_quote( $title, '/' );
-	$pattern = '/^##\s+' . $escaped . '\s*$\R(.*?)(?=^##\s|\z)/ms';
-	return preg_match( $pattern, $md, $m ) ? trim( $m[1] ) : '';
+// ── Header (same parsing rules as WordPress' get_file_data) ─────────────
+$main = src( "{$slug}.php" ) ?? fail( "{$slug}.php not found." );
+$head = substr( $main, 0, 8192 );
+$h    = array();
+foreach ( array( 'Plugin Name', 'Description', 'Version', 'Requires at least', 'Requires PHP', 'License', 'License URI', 'Tested up to' ) as $f ) {
+	$h[ $f ] = preg_match( '/^(?:[ \t]*<\?php)?[ \t\/*#@]*' . preg_quote( $f, '/' ) . ':(.*)$/mi', $head, $m ) ? trim( preg_replace( '/\s*(?:\*\/|\?>).*/', '', $m[1] ) ) : '';
+}
+foreach ( array( 'Plugin Name', 'Version', 'Description', 'License' ) as $f ) {
+	'' === $h[ $f ] && fail( "header field '{$f}' is missing in {$slug}.php." );
 }
 
-/**
- * Strip GitHub-only elements: badges, images, details blocks, HTML tags.
- */
-function strip_github( string $text ): string {
-	// Remove badge images.
-	$text = preg_replace( '/\[!\[[^\]]*\]\([^)]+\)\]\([^)]+\)/', '', $text );
-	// Remove standalone images.
-	$text = preg_replace( '/!\[[^\]]*\]\([^)]+\)/', '', $text );
-	// Remove <details> blocks.
-	$text = preg_replace( '/<details[\s\S]*?<\/details>/mi', '', $text );
-	// Remove horizontal rules.
-	$text = preg_replace( '/^---+\s*$/m', '', $text );
-	// Collapse multiple blank lines.
-	$text = preg_replace( '/\n{3,}/', "\n\n", $text );
-	return trim( $text );
+$meta = json_decode( src( 'readme.meta.json' ) ?? '{}', true ) ?: array();
+
+$licenses = array(
+	'GPL-2.0-or-later' => 'https://www.gnu.org/licenses/gpl-2.0.html',
+	'GPL-2.0-only'     => 'https://www.gnu.org/licenses/gpl-2.0.html',
+	'GPL-3.0-or-later' => 'https://www.gnu.org/licenses/gpl-3.0.html',
+	'GPL-3.0-only'     => 'https://www.gnu.org/licenses/gpl-3.0.html',
+	'MIT'              => 'https://opensource.org/licenses/MIT',
+);
+$license_uri = $h['License URI'] ?: ( $licenses[ $h['License'] ] ?? '' );
+
+$tested = $meta['testedUpTo'] ?? $h['Tested up to'];
+if ( '' === $tested && is_file( $root . '/../../../wp-includes/version.php' ) ) {
+	preg_match( "/\\\$wp_version\s*=\s*'(\d+\.\d+)/", file_get_contents( $root . '/../../../wp-includes/version.php' ), $v );
+	$tested = $v[1] ?? '';
 }
 
-/**
- * Convert markdown headings to WP readme format.
- * ### heading -> = heading =
- */
-function convert_headings( string $text ): string {
-	// ### h3 -> = h3 =
-	$text = preg_replace( '/^###\s+(.+)$/m', '= $1 =', $text );
-	return $text;
+$short = $meta['shortDescription'] ?? $h['Description'];
+$tags  = $meta['tags'] ?? array();
+if ( strlen( $short ) > 150 ) {
+	warn( 'short description is ' . strlen( $short ) . ' chars; wordpress.org truncates at 150 (set readme.meta.json shortDescription).' );
+}
+if ( count( $tags ) > 5 ) {
+	warn( 'wordpress.org shows only the first 5 tags.' );
+}
+'' === $tested && warn( "no 'Tested up to' (not in readme.meta.json, and no WordPress install found above the plugin)." );
+
+// ── Markdown → readme.txt ───────────────────────────────────────────────
+$md = src( 'README.md' ) ?? '';
+
+function section( string $md, array $titles ): string {
+	foreach ( $titles as $t ) {
+		if ( preg_match( '/^##[ \t]+' . preg_quote( $t, '/' ) . '[ \t]*$\R(.*?)(?=^##[ \t]|\z)/msi', $md, $m ) ) {
+			return trim( $m[1] );
+		}
+	}
+	return '';
+}
+function to_readme( string $text ): string {
+	$text = preg_replace( '/\[!\[[^\]]*\]\([^)]+\)\]\([^)]+\)/', '', $text );              // badges
+	$text = preg_replace( '/!\[[^\]]*\]\([^)]+\)/', '', $text );                           // images
+	$text = preg_replace( '/<details[\s\S]*?<\/details>/mi', '', $text );                  // <details>
+	$text = preg_replace_callback( '/^```[^\n]*\n(.*?)^```[ \t]*$/ms', fn( $m ) => preg_replace( '/^(?=.)/m', '    ', $m[1] ), $text ); // fenced → indented
+	$text = preg_replace( '/^#{3,}[ \t]+(.+?)[ \t]*$/m', '= $1 =', $text );                // ### h → = h =
+	$text = preg_replace( '/^[ \t]*-{3,}[ \t]*$/m', '', $text );                          // hr
+	return trim( preg_replace( '/\n{3,}/', "\n\n", $text ) );
 }
 
-/**
- * Convert FAQ from markdown to WP format.
- * **Question?** -> = Question? =
- */
-function convert_faq( string $text ): string {
-	$text = preg_replace( '/^\*\*(.+?)\*\*\s*$/m', '= $1 =', $text );
-	return $text;
+$changelog = '';
+if ( null !== ( $log = src( 'CHANGELOG.md' ) ) && preg_match_all( '/^##[ \t]+\[([^\]]+)\]([^\n]*)\R(.*?)(?=^##[ \t]+\[|\z)/ms', $log, $rel, PREG_SET_ORDER ) ) {
+	foreach ( $rel as $r ) {
+		if ( 0 === strcasecmp( $r[1], 'Unreleased' ) ) {
+			continue;
+		}
+		$date  = trim( ltrim( trim( $r[2] ), '-– ' ) );
+		$body  = preg_replace( '/^###[ \t]+(.+?)[ \t]*$/m', '**$1**', trim( $r[3] ) );
+		$body  = preg_replace( '/^([ \t]*)[-*][ \t]+/m', '$1* ', $body );
+		$changelog .= '= ' . $r[1] . ( '' !== $date ? " – {$date}" : '' ) . " =\n\n" . trim( $body ) . "\n\n";
+	}
 }
 
-/**
- * Convert CHANGELOG.md (Keep a Changelog) to WP readme format.
- * Drops the title and [Unreleased]; ## [1.3.0] - date -> = 1.3.0 =; ### Added -> **Added**.
- */
-function convert_changelog( string $text ): string {
-	// Everything before the first released version (title, intro, [Unreleased]) goes.
-	$text = preg_match( '/^##\s*\[\d.*/ms', $text, $m ) ? $m[0] : '';
-	$text = preg_replace( '/^##\s*\[([^\]]+)\].*$/m', '= $1 =', $text );
-	$text = preg_replace( '/^###\s+(.+)$/m', '**$1**', $text );
-	// - item -> * item
-	$text = preg_replace( '/^- /m', '* ', $text );
-	return trim( $text );
-}
-
-// Build output.
-$out = array();
-
-// Header block.
-$out[] = '=== ' . $meta['pluginName'] . ' ===';
-$out[] = 'Contributors: ' . implode( ', ', $meta['contributors'] );
-$out[] = 'Tags: ' . implode( ', ', $meta['tags'] );
-$out[] = 'Requires at least: ' . $meta['requiresAtLeast'];
-$out[] = 'Tested up to: ' . $meta['testedUpTo'];
-$out[] = 'Requires PHP: ' . $meta['requiresPHP'];
-$out[] = 'Stable tag: ' . $meta['stableTag'];
-$out[] = 'License: ' . $meta['license'];
-$out[] = 'License URI: ' . $meta['licenseUri'];
+$out   = array( '=== ' . $h['Plugin Name'] . ' ===' );
+$out[] = 'Contributors: ' . implode( ', ', $meta['contributors'] ?? array( 'lassejellum' ) );
+isset( $meta['donateLink'] ) && $out[] = 'Donate link: ' . $meta['donateLink'];
+$tags && $out[] = 'Tags: ' . implode( ', ', $tags );
+'' !== $h['Requires at least'] && $out[] = 'Requires at least: ' . $h['Requires at least'];
+'' !== $tested && $out[] = 'Tested up to: ' . $tested;
+'' !== $h['Requires PHP'] && $out[] = 'Requires PHP: ' . $h['Requires PHP'];
+$out[] = 'Stable tag: ' . $h['Version'];
+$out[] = 'License: ' . $h['License'];
+'' !== $license_uri && $out[] = 'License URI: ' . $license_uri;
 $out[] = '';
-$out[] = $meta['shortDescription'];
+$out[] = $short;
 
-// Description.
-$desc = section( $md, 'Description' );
-if ( $desc ) {
-	$out[] = '';
-	$out[] = '== Description ==';
-	$out[] = '';
-	$out[] = strip_github( $desc );
-}
-
-// Installation.
-$install = section( $md, 'Installation' );
-if ( $install ) {
-	$out[] = '';
-	$out[] = '== Installation ==';
-	$out[] = '';
-	$out[] = strip_github( $install );
-}
-
-// Usage.
-$usage = section( $md, 'Usage' );
-if ( $usage ) {
-	$out[] = '';
-	$out[] = '== Usage ==';
-	$out[] = '';
-	$out[] = strip_github( convert_headings( $usage ) );
-}
-
-// FAQ.
-$faq = section( $md, 'FAQ' );
-if ( $faq ) {
-	$out[] = '';
-	$out[] = '== Frequently Asked Questions ==';
-	$out[] = '';
-	$out[] = strip_github( convert_faq( $faq ) );
-}
-
-// Screenshots.
-$out[] = '';
-$out[] = '== Screenshots ==';
-$out[] = '';
-$out[] = 'No screenshots. Pages as Code is a CLI-only tool with no admin interface.';
-
-// Changelog.
-$changelog = file_exists( $cl_file ) ? convert_changelog( file_get_contents( $cl_file ) ) : '';
-if ( $changelog ) {
-	$out[] = '';
-	$out[] = '== Changelog ==';
-	$out[] = '';
-	$out[] = strip_github( $changelog );
+$sections = array(
+	'Description'                => section( $md, array( 'Description' ) ) ?: $h['Description'],
+	'Installation'               => section( $md, array( 'Installation' ) ),
+	'Frequently Asked Questions' => section( $md, array( 'FAQ', 'Frequently Asked Questions' ) ),
+	'Screenshots'                => section( $md, array( 'Screenshots' ) ),
+	'Changelog'                  => trim( $changelog ),
+	'Upgrade Notice'             => section( $md, array( 'Upgrade Notice' ) ),
+);
+foreach ( $sections as $title => $body ) {
+	if ( '' !== $body ) {
+		$out[] = '';
+		$out[] = "== {$title} ==";
+		$out[] = '';
+		$out[] = 'Changelog' === $title ? $body : to_readme( $body );
+	}
 }
 
 $result = implode( "\n", $out ) . "\n";
-file_put_contents( $out_file, $result );
-
-$size = strlen( $result );
-fwrite( STDERR, "Generated readme.txt ({$size} bytes)\n" );
+if ( ( is_file( 'readme.txt' ) ? file_get_contents( 'readme.txt' ) : null ) !== $result ) {
+	file_put_contents( 'readme.txt', $result );
+}
+exit( 0 );

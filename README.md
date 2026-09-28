@@ -435,33 +435,37 @@ The agent never touches the WordPress database directly. It writes a file, valid
 
 ## FAQ
 
-**What file format does Pages as Code use?**
+### What file format does Pages as Code use?
 
 Pages use `.html` files with YAML front matter at the top (delimited by `---`). The body contains standard Gutenberg block markup.
 
-**Does it support posts or custom post types?**
+### Does it support posts or custom post types?
 
 Yes. As of 1.8.0, themes and plugins can register additional post types via the `pac_post_types` filter — see [Custom post types](#custom-post-types). Each entry can override the default landing directory and required capability. `page` is always implicitly registered. The post type for a file is declared in the `type:` front-matter field or via the `--post-type=<slug>` CLI flag. Scope is currently `title` / `slug` / `status` / `excerpt` / `post_content`; CPT-specific fields like product price, SKU, and taxonomies stay in WP admin.
 
-**What happens if I edit a page in WordPress after pushing?**
+### What happens if I edit a page in WordPress after pushing?
 
 The next `wp pac push` for that file will overwrite any changes made in WordPress. Pages as Code is a one-way file-to-WordPress workflow. The file is always the source of truth at push time. To capture human edits, run `wp pac pull <slug>` first.
 
-**How does the skip-if-unchanged behavior work?**
+### How does the skip-if-unchanged behavior work?
 
 Pages as Code computes a SHA-256 hash of the file content and stores it as post meta (`_pac_hash`). On subsequent pushes, if the hash matches, the push is skipped. This avoids unnecessary database writes.
 
-**What YAML front matter fields are supported?**
+### What YAML front matter fields are supported?
 
 `title` (required), `slug`, `type`, `status`, `template` (page-only), `parent` (page-only), `css`, `js`, and `meta`. See the [front matter table](#front-matter-fields) for defaults and validation rules.
 
-**Can I move the managed-files directory somewhere other than `wp-content/pages/`?**
+### Can I move the managed-files directory somewhere other than `wp-content/pages/`?
 
 Yes — register the [`pac_pages_root` filter](#filter-pac_pages_root) and return any absolute path. All commands and the asset enqueue follow the filter. Note that registering it also tells the plugin to skip activation scaffolding, so you take ownership of `CLAUDE.md` and the `.claude/skills/` tree.
 
-**Does it require WP-CLI?**
+### Does it require WP-CLI?
 
 Yes. Pages as Code is a CLI-only tool with no admin UI. It requires WP-CLI 2.0 or later.
+
+## Screenshots
+
+No screenshots. Pages as Code is a CLI-only tool with no admin interface.
 
 ## Plugin structure
 
@@ -488,12 +492,13 @@ pages-as-code/
     pages-CLAUDE.md                Agent instructions (copied to pages root —
                                    skipped when pac_pages_root is filtered)
   tools/
-    generate-readme.php            Generates readme.txt from README.md + CHANGELOG.md
-    pre-commit                     Suite kit version-sync hook (core.hooksPath tools)
+    generate-readme.php            Suite kit: readme.txt from header + README.md + CHANGELOG.md
+    pre-commit                     Suite kit hook: version sync + readme.txt (core.hooksPath tools)
+    release                        Suite kit: tools/release patch|minor|major
   CHANGELOG.md                     The one changelog (Keep a Changelog)
   CLAUDE.md                        Plugin development instructions
   README.md                        This file (canonical docs)
-  readme.meta.json                 WordPress readme metadata
+  readme.meta.json                 Registry-only readme fields (contributors, tags)
   readme.txt                       Generated (do not edit)
 ```
 
