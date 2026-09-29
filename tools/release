@@ -1,12 +1,14 @@
 #!/usr/bin/env php
 <?php
 /**
- * Kaupang suite release command. (kit v2.1, docs/kit/)
+ * Kaupang suite release command. (kit v2.2, docs/kit/)
  *
- * Usage (from the plugin root, as the site user):
- *   tools/release patch|minor|major|x.y.z [--push]
+ * Usage (from the plugin root, as the site user; `php` because perms healing may have stripped the exec bit):
+ *   php tools/release patch|minor|major|x.y.z [--push]
  *
- * 1. refuses if the main file or CHANGELOG.md has uncommitted changes, or [Unreleased] is empty;
+ * 1. refuses if the configured pre-commit hook can't run (core.hooksPath, else .git/hooks, must hold an executable
+ *    pre-commit: the server wrapper or an executable tools/pre-commit), if the main file or CHANGELOG.md has
+ *    uncommitted changes, or if [Unreleased] is empty;
  * 2. bumps the header `Version:`; turns `## [Unreleased]` into `## [x.y.z] - today` and opens a new empty one;
  * 3. if languages/ exists and WP-CLI is available: regenerates the .pot, merges it into every .po, rebuilds .mo/.l10n.php/.json;
  * 4. commits "Release x.y.z" (the pre-commit hook syncs constants and regenerates readme.txt) and tags vx.y.z;
@@ -34,8 +36,12 @@ chdir( $root );
 $main = run( 'git config kit.main', false ) ?: basename( $root ) . '.php'; // same override as the hook
 $slug = basename( $main, '.php' );
 
-if ( 'tools' !== run( 'git config core.hooksPath', false ) || ! is_executable( 'tools/pre-commit' ) ) {
-	fail( 'the kit hook is not installed (tools/pre-commit + `git config core.hooksPath tools`).' );
+// The commit below must go through the kit hook. Git silently skips a missing/non-executable hook, so check first.
+$hooks = run( 'git config core.hooksPath', false ) ?: run( 'git rev-parse --git-path hooks' );
+$hook  = ( str_starts_with( $hooks, '/' ) ? $hooks : "{$root}/{$hooks}" ) . '/pre-commit';
+if ( ! is_executable( $hook ) ) {
+	fail( "the kit hook would not run: {$hook} is missing or not executable. Set core.hooksPath to " .
+		'/usr/local/share/kaupang-kit/hooks (GridPane server) or to tools with an executable tools/pre-commit (local).' );
 }
 foreach ( array( $main, 'CHANGELOG.md' ) as $f ) {
 	'' !== run( 'git status --porcelain -- ' . escapeshellarg( $f ) ) && fail( "{$f} has uncommitted changes; commit or stash them first." );

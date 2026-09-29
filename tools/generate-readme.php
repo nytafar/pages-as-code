@@ -1,7 +1,7 @@
 #!/usr/bin/env php
 <?php
 /**
- * Kaupang suite readme.txt generator. (kit v2.1, docs/kit/)
+ * Kaupang suite readme.txt generator. (kit v2.2, docs/kit/)
  *
  * readme.txt is a build artefact: never edit it. Every fact has one source —
  *   plugin header (<folder>.php) : name, version (Stable tag), Requires at least, Requires PHP, License, Description

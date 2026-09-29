@@ -1,17 +1,21 @@
 #!/usr/bin/env php
 <?php
 /**
- * Kaupang suite pre-commit hook: one version, synced everywhere. (kit v2.1, docs/kit/)
+ * Kaupang suite pre-commit hook: one version, synced everywhere. (kit v2.2, docs/kit/)
  *
  * The plugin header `Version:` in <repo-folder>.php is the single source of truth. On every commit:
  *   1. syncs it into the *_VERSION constant, readme.txt `Stable tag:`, readme.meta.json `stableTag`,
  *      package.json `version` and any tracked block.json that has a `version` key;
  *   2. regenerates readme.txt from header + README.md + CHANGELOG.md (tools/generate-readme.php) — readme.txt is an artefact;
  *   3. refuses a version bump without a `## [x.y.z]` section in CHANGELOG.md (Keep a Changelog);
- *   4. runs tools/pre-commit-check if present and executable (plugin-local checks, e.g. build --check — note: those see
- *      the working tree, not the index, so keep generated files staged together with their sources).
+ *   4. runs tools/pre-commit-check if present, via the interpreter in its shebang (php/sh/bash), exec bit or not
+ *      (plugin-local checks, e.g. build --check — note: those see the working tree, not the index, so keep generated
+ *      files staged together with their sources).
  *
- * Install (per checkout, as the site user):  git config core.hooksPath tools
+ * Install (per checkout, as the site user), one of:
+ *   GridPane server: git config core.hooksPath /usr/local/share/kaupang-kit/hooks && git config core.fileMode false
+ *                    (the wrapper runs this file through php; perms healing chmods tools/* to 644 and git would skip it)
+ *   elsewhere:       git config core.hooksPath tools   (tools/pre-commit must be executable)
  * Copied, not shared: keep every plugin's tools/pre-commit identical to docs/kit/pre-commit.
  */
 
@@ -114,8 +118,11 @@ if ( is_file( 'tools/generate-readme.php' ) && null !== staged( 'readme.txt' ) )
 	}
 }
 
-if ( is_file( 'tools/pre-commit-check' ) && is_executable( 'tools/pre-commit-check' ) ) {
-	passthru( './tools/pre-commit-check', $code );
+if ( is_file( 'tools/pre-commit-check' ) ) {
+	// Not `./tools/pre-commit-check`: perms healing may have stripped its exec bit. Interpreter from the shebang.
+	preg_match( '/^#!\s*(\S+)(?:[ \t]+(\S+))?/', (string) fgets( fopen( 'tools/pre-commit-check', 'r' ) ), $sb );
+	$via = isset( $sb[1] ) ? ( 'env' === basename( $sb[1] ) ? ( $sb[2] ?? 'sh' ) : basename( $sb[1] ) ) : 'sh';
+	passthru( escapeshellarg( $via ) . ' tools/pre-commit-check', $code );
 	if ( 0 !== $code ) {
 		fail( 'tools/pre-commit-check failed.' );
 	}
