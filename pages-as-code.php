@@ -21,16 +21,30 @@ define( 'PAC_VERSION', '1.9.0' );
 define( 'PAC_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'PAC_PAGES_ROOT_DEFAULT', WP_CONTENT_DIR . '/pages' );
 
-require_once PAC_PLUGIN_DIR . 'includes/class-pac-asset-path.php';
-require_once PAC_PLUGIN_DIR . 'includes/class-pac-file.php';
-require_once PAC_PLUGIN_DIR . 'includes/class-pac-pusher.php';
-require_once PAC_PLUGIN_DIR . 'includes/class-pac-assets.php';
-require_once PAC_PLUGIN_DIR . 'includes/class-pac-validator.php';
-require_once PAC_PLUGIN_DIR . 'includes/class-pac-serializer.php';
-require_once PAC_PLUGIN_DIR . 'includes/class-pac-puller.php';
+// Classes load on first use (PAC_Foo_Bar => includes/class-pac-foo-bar.php): a storefront page that isn't
+// pac-managed includes this file only; push/pull/validate code loads only in WP-CLI.
+spl_autoload_register(
+	static function ( $class_name ) {
+		if ( 0 === strpos( $class_name, 'PAC_' ) ) {
+			$file = PAC_PLUGIN_DIR . 'includes/class-' . strtolower( str_replace( '_', '-', $class_name ) ) . '.php';
+			if ( is_readable( $file ) ) {
+				require_once $file;
+			}
+		}
+	}
+);
 
-// Initialize frontend/editor asset enqueue.
-PAC_Assets::init();
+// Frontend: page CSS/JS, decided once the main query is known. PAC_Assets loads only on managed posts.
+add_action(
+	'wp_enqueue_scripts',
+	static function () {
+		if ( is_singular( array_keys( pac_post_types() ) ) && '1' === get_post_meta( get_queried_object_id(), '_pac_managed', true ) ) {
+			PAC_Assets::enqueue_frontend();
+		}
+	}
+);
+// Block editor: PAC_Assets checks the screen's post type and the managed flag before enqueueing.
+add_action( 'enqueue_block_editor_assets', array( 'PAC_Assets', 'enqueue_editor' ) );
 
 /**
  * Get the managed pages root directory.
@@ -248,6 +262,5 @@ register_activation_hook( __FILE__, 'pac_activate' );
  * Register WP-CLI command when running in CLI context.
  */
 if ( defined( 'WP_CLI' ) && WP_CLI ) {
-	require_once PAC_PLUGIN_DIR . 'includes/class-pac-cli.php';
 	WP_CLI::add_command( 'pac', 'PAC_CLI' );
 }

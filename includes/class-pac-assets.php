@@ -2,6 +2,8 @@
 /**
  * PAC_Assets — Enqueue page-specific CSS/JS on frontend and CSS in block editor.
  *
+ * Hooked from the bootstrap (pages-as-code.php), so the class loads only on managed posts and in block editors.
+ *
  * @package Pages_as_Code
  */
 
@@ -10,14 +12,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 class PAC_Assets {
-
-	/**
-	 * Register WordPress hooks.
-	 */
-	public static function init() {
-		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_frontend' ) );
-		add_action( 'enqueue_block_editor_assets', array( __CLASS__, 'enqueue_editor' ) );
-	}
 
 	/**
 	 * Enqueue CSS and JS for a PAC-managed post on the frontend.

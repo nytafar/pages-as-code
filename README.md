@@ -495,12 +495,30 @@ pages-as-code/
     generate-readme.php            Suite kit: readme.txt from header + README.md + CHANGELOG.md
     pre-commit                     Suite kit hook: version sync + readme.txt (core.hooksPath tools)
     release                        Suite kit: tools/release patch|minor|major
+    check.php                      Loading-precision check (wp eval-file, read-only)
+    load-budget.php                Storefront budget for `wp kaupang-assets audit --budget`
   CHANGELOG.md                     The one changelog (Keep a Changelog)
   CLAUDE.md                        Plugin development instructions
   README.md                        This file (canonical docs)
   readme.meta.json                 Registry-only readme fields (contributors, tags)
   readme.txt                       Generated (do not edit)
 ```
+
+## Load map
+
+Classes autoload from `includes/` on first use (`PAC_Foo_Bar` → `class-pac-foo-bar.php`); the bootstrap only registers
+hooks and the `pac_*` helpers. No options, no save hooks, no admin screens.
+
+| Context | Files | Assets | Autoloaded options |
+|---|---|---|---|
+| Guest page that isn't pac-managed | main file (1) | none | none |
+| Guest view of a pac-managed post (staging: `front_page`, `pac`, `faq`) | + `PAC_Assets`, `PAC_Asset_Path` (3): resolve and enqueue the post's own CSS/JS | `pac-page-<id>` (CSS), `pac-page-<id>-js` (JS); files live in the pages root, not the plugin folder | none |
+| Block editor, a post type in `pac_post_types()` on a managed post | + `PAC_Assets`, `PAC_Asset_Path` | `pac-page-<id>` (CSS only) | none |
+| Other admin screens, REST, AJAX, cron | main file | none | none |
+| WP-CLI | + `PAC_CLI`, then what the command uses (`PAC_File`, `PAC_Pusher`, `PAC_Puller`, `PAC_Serializer`, `PAC_Validator`) | — | none |
+
+Budget: `tools/load-budget.php` (2 files everywhere; 3 on the page types that resolve to managed posts on staging).
+Check: `gp wp <site> eval-file wp-content/plugins/pages-as-code/tools/check.php` (exits non-zero on failure).
 
 ## Changelog
 
