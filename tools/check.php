@@ -93,3 +93,13 @@ PAC_Assets::enqueue_editor();
 in_array( 'pac-page-' . $managed[0], $pac_styles(), true ) || $fail( 'editor CSS missing in the managed post editor (check is vacuous)' );
 unset( $_GET['post'] );
 $ok( 'editor CSS only in editors of registered post types, on managed posts' );
+
+// Storefront load budget (conventions.md §5B).
+if (class_exists('WP_CLI') && is_array(WP_CLI::get_runner()->find_command_to_run(['kaupang-assets', 'audit']))) {
+	$audit = WP_CLI::runcommand('kaupang-assets audit --plugins=pages-as-code --budget', ['return' => 'all', 'exit_error' => false]);
+	echo $audit->stdout . "\n";
+	$audit->return_code === 0 && $audit->stdout !== '' || $fail('kaupang-assets audit --plugins=pages-as-code --budget exits 0' . ': ' . trim($audit->stderr));
+	$ok('kaupang-assets audit --plugins=pages-as-code --budget exits 0');
+} else {
+	echo "  skip storefront budget: `wp kaupang-assets audit` is not available here\n";
+}

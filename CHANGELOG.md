@@ -5,6 +5,7 @@ All notable changes to Pages as Code will be documented in this file.
 ## [Unreleased]
 
 ### Changed
+- check.php runs the load budget audit.
 - Loading precision: classes autoload on first use instead of seven `require_once` at boot. A page that isn't pac-managed includes only the main file (was 8); a managed post adds `PAC_Assets` + `PAC_Asset_Path`; push/pull/validate code loads only in WP-CLI. Frontend and editor hooks are registered by the bootstrap; `PAC_Assets::init()` is removed (no callers).
 - New `tools/check.php` (wp eval-file) proving the boot, frontend and editor gates; `tools/load-budget.php`; README `## Load map`.
 - Adopted suite kit v1: `tools/pre-commit` is the kit version-sync hook (`git config core.hooksPath tools`); the header `Version:` is the single source, synced to `PAC_VERSION` and `readme.meta.json`. `readme.txt`'s changelog is now generated from CHANGELOG.md; README.md no longer keeps a copy.
