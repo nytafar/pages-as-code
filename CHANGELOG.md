@@ -4,6 +4,8 @@ All notable changes to Pages as Code will be documented in this file.
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-11-19
+
 ### Changed
 - check.php runs the load budget audit.
 - Loading precision: classes autoload on first use instead of seven `require_once` at boot. A page that isn't pac-managed includes only the main file (was 8); a managed post adds `PAC_Assets` + `PAC_Asset_Path`; push/pull/validate code loads only in WP-CLI. Frontend and editor hooks are registered by the bootstrap; `PAC_Assets::init()` is removed (no callers).
