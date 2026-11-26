@@ -14,6 +14,10 @@ class PAC_CLI {
 	/**
 	 * Push a file to WordPress.
 	 *
+	 * An existing post is overwritten only while its content equals its baseline: what pac last pushed, or the
+	 * file's `expect_hash:` (written by `wp pac pull`). A post changed since then, or one pac never pushed, is
+	 * refused and nothing is written.
+	 *
 	 * ## OPTIONS
 	 *
 	 * <file>
@@ -22,6 +26,10 @@ class PAC_CLI {
 	 * [--post-type=<slug>]
 	 * : Override the post type. Wins over the front-matter `type:` field when
 	 * both are present. Defaults to `page` when neither is set.
+	 *
+	 * [--force]
+	 * : Overwrite even when the post changed since its baseline; the changes are lost. `PAC_FORCE=1` in the
+	 * environment does the same.
 	 *
 	 * [--format=<format>]
 	 * : Output format.
@@ -71,9 +79,10 @@ class PAC_CLI {
 		}
 
 		// Push to WordPress.
-		$result = PAC_Pusher::push( $file );
+		$force  = (bool) WP_CLI\Utils\get_flag_value( $assoc_args, 'force', false ) || '1' === getenv( 'PAC_FORCE' );
+		$result = PAC_Pusher::push( $file, array( 'force' => $force ) );
 		if ( is_wp_error( $result ) ) {
-			$this->output_error( $result->get_error_message(), $relative_path, $format );
+			$this->output_error( $result->get_error_message(), $relative_path, $format, $result->get_error_code() );
 			return;
 		}
 
@@ -250,6 +259,56 @@ class PAC_CLI {
 	}
 
 	/**
+	 * Print the content hash of a post: the value a file's `expect_hash:` takes.
+	 *
+	 * A file that targets a post pac never pushed (e.g. an existing live page) must declare this hash, taken
+	 * when someone saw the content it replaces; the push is refused if the post has changed since.
+	 *
+	 * ## OPTIONS
+	 *
+	 * <slug>
+	 * : Post slug. Accepts `<post_type>/<slug>` shorthand.
+	 *
+	 * [--post-type=<slug>]
+	 * : Explicit post type. Wins over the path-style shorthand.
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     wp pac hash forside
+	 *     wp pac hash product/myrvann-cacao
+	 *
+	 * @when after_wp_load
+	 *
+	 * @param array $args       Positional arguments.
+	 * @param array $assoc_args Associative arguments.
+	 */
+	public function hash( $args, $assoc_args ) {
+		$flag_type      = WP_CLI\Utils\get_flag_value( $assoc_args, 'post-type', null );
+		$shorthand_type = null;
+		$slug           = $args[0];
+		if ( null === $flag_type && false !== strpos( $slug, '/' ) ) {
+			list( $shorthand_type, $slug ) = explode( '/', $slug, 2 );
+		}
+
+		$post_type = pac_resolve_post_type( $shorthand_type, $flag_type );
+		if ( is_wp_error( $post_type ) ) {
+			WP_CLI::error( $post_type->get_error_message() );
+		}
+
+		$cap = pac_post_type_capability( $post_type );
+		if ( ! current_user_can( $cap ) ) {
+			WP_CLI::error( sprintf( 'You do not have permission (%s) to read %s.', $cap, $post_type ) );
+		}
+
+		$post = PAC_Pusher::find_post_by_slug( $slug, $post_type );
+		if ( ! $post ) {
+			WP_CLI::error( sprintf( 'No %s found with slug "%s".', $post_type, $slug ) );
+		}
+
+		WP_CLI::line( PAC_Pusher::content_hash( $post->post_content ) );
+	}
+
+	/**
 	 * Output a successful result.
 	 *
 	 * @param array  $result Push result.
@@ -314,12 +373,14 @@ class PAC_CLI {
 	 * @param string $message       Error message.
 	 * @param string $relative_path File path or slug for JSON output.
 	 * @param string $format        Output format.
+	 * @param string $code          Error code (JSON only), e.g. `pac_post_changed` for a refused push.
 	 */
-	private function output_error( $message, $relative_path, $format ) {
+	private function output_error( $message, $relative_path, $format, $code = '' ) {
 		if ( 'json' === $format ) {
 			WP_CLI::line(
 				wp_json_encode( array(
 					'status'  => 'error',
+					'code'    => $code,
 					'message' => $message,
 					'file'    => $relative_path,
 				) )

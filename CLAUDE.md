@@ -56,6 +56,9 @@ php -l pages-as-code.php && php -l includes/*.php
 # Loading-precision check (read-only, exits non-zero on failure); README "## Load map"
 gp wp <site> eval-file wp-content/plugins/pages-as-code/tools/check.php
 
+# Push guard (writes two throwaway private pages, deletes them; last line OK)
+gp wp <site> eval-file /var/www/<site>/htdocs/wp-content/plugins/pages-as-code/tools/check-push-guard.php
+
 # Test push cycle
 wp pac push test-page.html --user=1
 wp pac push test-page.html --user=1   # Should report "unchanged"

@@ -194,6 +194,8 @@ class PAC_Puller {
 		// Pull tracking fields.
 		$fields['pulled_revision'] = $revision_id;
 		$fields['pulled_gmt']      = gmdate( 'c' );
+		// The content this file was made from: the push guard accepts the post while it still holds it.
+		$fields['expect_hash'] = PAC_Pusher::content_hash( $post->post_content );
 
 		return $fields;
 	}

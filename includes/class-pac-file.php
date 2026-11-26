@@ -32,6 +32,9 @@ class PAC_File {
 	/** @var array Post meta from front matter. */
 	public $meta = array();
 
+	/** @var string Expected SHA-256 of the target post's current content (front matter `expect_hash:`), or ''. */
+	public $expect_hash = '';
+
 	/** @var string Block markup body. */
 	public $body = '';
 
@@ -146,6 +149,16 @@ class PAC_File {
 		}
 		if ( ! empty( $yaml['parent'] ) ) {
 			$file->parent = sanitize_title( (string) $yaml['parent'] );
+		}
+		if ( isset( $yaml['expect_hash'] ) && '' !== (string) $yaml['expect_hash'] ) {
+			$expect = strtolower( preg_replace( '/^sha256:/i', '', trim( (string) $yaml['expect_hash'] ) ) );
+			if ( ! preg_match( '/^[0-9a-f]{64}$/', $expect ) ) {
+				return new WP_Error(
+					'pac_front_matter_error',
+					sprintf( 'Front matter parse error in %s: expect_hash must be 64 hex characters (sha256 of post_content).', $relative_path )
+				);
+			}
+			$file->expect_hash = $expect;
 		}
 		if ( ! empty( $yaml['meta'] ) && is_array( $yaml['meta'] ) ) {
 			$file->meta = $yaml['meta'];
