@@ -155,3 +155,4 @@ Written automatically on every successful push:
 | `_pac_source` | Relative file path (e.g., `landing/product-a.html`) |
 | `_pac_hash` | SHA-256 hash of file contents |
 | `_pac_last_push_gmt` | ISO 8601 UTC timestamp |
+| `_pac_content_hash` | SHA-256 of `post_content` as stored: the push guard's baseline |

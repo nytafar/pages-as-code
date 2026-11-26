@@ -132,6 +132,7 @@ Invoke `/pages-as-code` for the full workflow. It loads detailed references by i
 - **`template` must exist in the active theme.** Omit it if unsure — WordPress uses the default page template.
 - **Push parents before children.** If a page has `parent: company`, the `company` page must already exist.
 - **Re-pushing an unchanged file is a no-op.** The plugin tracks a SHA-256 hash and skips identical content.
+- **A push never overwrites edits made in WordPress.** If the page changed since pac last pushed it (or since the file's `expect_hash:`), the push is refused and nothing is written. Pull first (`wp pac pull <slug> --revision-suffix`), merge the edits and the `expect_hash:` line into your file, then push. Never add `--force` on your own: it discards someone's edits. Use it only when the site owner says so.
 - **`--user` flag is required** in most hosting environments.
 
 ## WP-CLI

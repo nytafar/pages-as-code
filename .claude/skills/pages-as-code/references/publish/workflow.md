@@ -41,9 +41,12 @@ wp post list --post_type=page --meta_key=_pac_managed --fields=ID,post_title,pos
 3. Look up existing page by slug
 4. **No match** → `wp_insert_post()` → "created"
 5. **Match, same hash** → skip → "unchanged"
-6. **Match, different hash** → `wp_update_post()` → revision created → "updated"
-7. Write tracking meta (`_pac_managed`, `_pac_source`, `_pac_hash`, `_pac_last_push_gmt`)
-8. Write user-defined meta from front matter
+6. **Match, different hash** → push guard: the post's current content must equal what pac last saved (`_pac_content_hash`) or the file's `expect_hash:`. Otherwise **refused, nothing written**
+7. Guard passes (or `--force`) → `wp_update_post()` → revision created → "updated"
+8. Write tracking meta (`_pac_managed`, `_pac_source`, `_pac_hash`, `_pac_content_hash`, `_pac_last_push_gmt`)
+9. Write user-defined meta from front matter
+
+A refused push means someone edited the page in WordPress. Pull it (`wp pac pull <slug> --revision-suffix`), merge the edits and the pulled `expect_hash:` line into your file, then push again. `--force` discards their edits: only on the site owner's word.
 
 ## Multi-page ordering
 

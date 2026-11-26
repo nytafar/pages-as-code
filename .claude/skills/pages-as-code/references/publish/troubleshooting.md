@@ -10,6 +10,9 @@
 | "Path outside managed root" | Path traversal (`../`) | Use paths relative to `wp-content/pages/` |
 | "missing title field" | No `title` in front matter | Add `title: Your Title` |
 | "File not found" | Wrong filename or path | Check spelling and that file exists in `wp-content/pages/` |
+| "Refused: … was changed after pac last pushed it" / "… has a revision … newer than pac's last push" | Someone edited the page in WordPress after the last push | `wp pac pull <slug> --revision-suffix`, merge its edits and `expect_hash:` line into your file, push again. `--force` only on the site owner's word |
+| "Refused: … pac never pushed it" | The slug belongs to an existing page pac does not manage | Pull it, or add `expect_hash:` from `wp pac hash <slug>` once you have seen its content |
+| "expect_hash differs" | The page changed since the hash was recorded | Pull again and re-merge |
 | "command not found: wp" | WP-CLI not in PATH or managed hosting | Try `gp wp` (GridPane) or check hosting docs |
 
 ## GridPane hosting

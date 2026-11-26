@@ -100,6 +100,7 @@ meta:
 | `css` | no | auto-resolved | CSS asset path relative to `wp-content/`. Overrides sibling resolution. |
 | `js` | no | auto-resolved | JS asset path relative to `wp-content/`. Overrides sibling resolution. |
 | `meta` | no | -- | Key-value map written as post meta. |
+| `expect_hash` | no | -- | SHA-256 of the target post's current `post_content` (64 hex, `sha256:` prefix allowed). The push goes through only while the post still holds that content. Written by `wp pac pull`; required to push onto a post pac never pushed. See [Push guard](#push-guard). |
 
 ### File location
 
@@ -260,7 +261,8 @@ Pages as Code is a one-way file-to-WordPress workflow for developers and coding 
 - Sibling CSS/JS asset resolution with three-tier fallback (front matter > sibling > shared directory)
 - Per-post CSS enqueued on frontend and block editor; JS enqueued frontend only
 - Parent page resolution by slug (page-only)
-- Plugin tracking meta (`_pac_managed`, `_pac_source`, `_pac_hash`, `_pac_css`, `_pac_js`)
+- Push guard: refuses to overwrite a post changed since its baseline (`expect_hash:`, `--force`)
+- Plugin tracking meta (`_pac_managed`, `_pac_source`, `_pac_hash`, `_pac_content_hash`, `_pac_css`, `_pac_js`)
 - Path traversal protection and per-type capability checks
 - Filterable pages root (`pac_pages_root`) and post-type registry (`pac_post_types`)
 - JSON output format support (`--format=json`)
@@ -283,9 +285,10 @@ Pages as Code requires WP-CLI 2.0 or later.
 ### CLI reference
 
 ```bash
-wp pac push <file> [--post-type=<slug>] [--format=<format>] [--user=<id>]
+wp pac push <file> [--post-type=<slug>] [--force] [--format=<format>] [--user=<id>]
 wp pac pull <slug> [--post-type=<slug>] [--dir=<dir>] [--force] [--revision-suffix] [--format=<format>] [--user=<id>]
 wp pac validate <file> [--strict] [--user=<id>]
+wp pac hash <slug> [--post-type=<slug>] [--user=<id>]
 ```
 
 | Command | Description |
@@ -293,6 +296,7 @@ wp pac validate <file> [--strict] [--user=<id>]
 | `wp pac push <file>` | Push a file to WordPress as a post |
 | `wp pac pull <slug>` | Pull a WordPress post to a local file. Accepts `<type>/<slug>` shorthand |
 | `wp pac validate <file>` | Validate block markup and return a JSON diagnostic report |
+| `wp pac hash <slug>` | Print a post's content hash, the value `expect_hash:` takes. Accepts `<type>/<slug>` shorthand |
 
 | Argument | Description |
 |----------|-------------|
@@ -301,7 +305,7 @@ wp pac validate <file> [--strict] [--user=<id>]
 | `--post-type` | Post type slug. Wins over front-matter `type:` and over the path-style shorthand. Defaults to `page`. |
 | `--format` | `human` (default) or `json` |
 | `--dir` | Subdirectory to write pulled file into. Overrides per-type default. (pull only) |
-| `--force` | Overwrite existing file (pull only) |
+| `--force` | push: overwrite a post changed since its baseline (its changes are lost); `PAC_FORCE=1` in the environment does the same. pull: overwrite an existing file |
 | `--revision-suffix` | Append revision ID to filename, e.g. `about.r123.html` (pull only) |
 | `--strict` | Treat warnings as fatal for exit code (validate only) |
 | `--user` | WordPress user ID with the post type's required capability |
@@ -312,7 +316,21 @@ wp pac validate <file> [--strict] [--user=<id>]
 |----------|--------|--------|
 | Post doesn't exist | `wp_insert_post()` | `Created page "About" (ID 42, slug: about).` |
 | Post exists, file unchanged | Skip (no-op) | `Page "About" unchanged, skipping.` |
-| Post exists, file changed | `wp_update_post()` + revision | `Updated page "About" (ID 42, slug: about).` |
+| Post exists, file changed, post holds its baseline | `wp_update_post()` + revision | `Updated page "About" (ID 42, slug: about).` |
+| Post exists, file changed, post changed since its baseline | Refused, nothing written (exit 1) | `Error: Refused: page "about" (ID 42) was changed after pac last pushed it, …` |
+
+### Push guard
+
+`wp pac push` never overwrites a post that changed after its baseline unless told to. It holds for whoever runs it (an agent, a person or a script). The post's current `post_content` is hashed (SHA-256) and the push goes through when the hash equals one of these:
+
+1. the file's `expect_hash:`, which `wp pac pull` writes and which records the content the file was made from, or
+2. `_pac_content_hash`, the content pac itself last saved to that post.
+
+A post pushed before 1.11.0 has no `_pac_content_hash` yet. It goes through when no revision is newer than its `_pac_last_push_gmt`. A post pac never pushed (an existing page the file replaces) goes through only with a matching `expect_hash:`. Record it with `wp pac hash <slug>` when you have seen the content that will be replaced.
+
+A refusal writes nothing: no revision and no meta. The error code is `pac_post_changed`, `pac_expect_hash_mismatch` or `pac_unmanaged_post`, and it is in the `code` field with `--format=json`. To keep the edits, pull them (`wp pac pull <slug> --revision-suffix` writes a copy beside your file), bring them and the copy's `expect_hash:` line into your file, then push. To discard them on purpose, pass `--force`. Through `gp wp`, use `--force`: `sudo` drops a `PAC_FORCE=1` prefix.
+
+The guard compares `post_content` only. A title, status or meta change made in wp-admin is not detected.
 
 The output substitutes the actual post type — `Created product "…"`, `Updated attribute_page "…"`, etc. Lookup is `(slug, post_type)`, so the same slug can exist under different post types without collision.
 
@@ -365,7 +383,7 @@ wp pac pull about --force --user=1
 wp pac pull about --force --format=json --user=1
 ```
 
-Pulled files include `pulled_revision` and `pulled_gmt` in front matter for revision tracking. These fields are ignored on push. The `type:` front-matter field is only emitted for non-page posts so that pulled `page` files round-trip byte-for-byte unchanged.
+Pulled files include `pulled_revision` and `pulled_gmt` in front matter for revision tracking. These fields are ignored on push. They also carry `expect_hash:`, the hash of the content pulled, which lets the [push guard](#push-guard) accept the file while the post still holds that content. The `type:` front-matter field is only emitted for non-page posts so that pulled `page` files round-trip byte-for-byte unchanged.
 
 ### Finding admin users
 
@@ -445,7 +463,7 @@ Yes. As of 1.8.0, themes and plugins can register additional post types via the 
 
 ### What happens if I edit a page in WordPress after pushing?
 
-The next `wp pac push` for that file will overwrite any changes made in WordPress. Pages as Code is a one-way file-to-WordPress workflow. The file is always the source of truth at push time. To capture human edits, run `wp pac pull <slug>` first.
+The next `wp pac push` for that file is refused, and nothing is written (see [Push guard](#push-guard)). Run `wp pac pull <slug>` to bring the edits into a file, then push. `--force` overwrites the edits deliberately.
 
 ### How does the skip-if-unchanged behavior work?
 
@@ -453,7 +471,7 @@ Pages as Code computes a SHA-256 hash of the file content and stores it as post 
 
 ### What YAML front matter fields are supported?
 
-`title` (required), `slug`, `type`, `status`, `template` (page-only), `parent` (page-only), `css`, `js`, and `meta`. See the [front matter table](#front-matter-fields) for defaults and validation rules.
+`title` (required), `slug`, `type`, `status`, `template` (page-only), `parent` (page-only), `css`, `js`, `meta` and `expect_hash`. See the [front matter table](#front-matter-fields) for defaults and validation rules.
 
 ### Can I move the managed-files directory somewhere other than `wp-content/pages/`?
 
