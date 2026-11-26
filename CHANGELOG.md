@@ -4,6 +4,8 @@ All notable changes to Pages as Code will be documented in this file.
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-11-26
+
 ### Added
 - **Push guard** (#7). `wp pac push` refuses to overwrite a post whose content changed since its baseline, and writes nothing when it refuses. The baseline is the content pac last saved (new meta `_pac_content_hash`), or the file's new `expect_hash:` front-matter field (sha256 of `post_content`). `wp pac pull` writes `expect_hash:`, so a pull followed by a push goes through. A post pushed before this version falls back to the revision time: refused when a revision is newer than `_pac_last_push_gmt`. A post pac never pushed is refused unless the file's `expect_hash:` matches it. `--force` (or `PAC_FORCE=1`) overwrites. JSON errors carry a `code` (`pac_post_changed`, `pac_expect_hash_mismatch`, `pac_unmanaged_post`).
 - `wp pac hash <slug>` prints a post's content hash, the value `expect_hash:` takes.
