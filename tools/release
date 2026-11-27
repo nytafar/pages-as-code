@@ -1,7 +1,7 @@
 #!/usr/bin/env php
 <?php
 /**
- * Kaupang suite release command. (kit v2.2, docs/kit/)
+ * Kaupang suite release command. (kit v2.4, docs/kit/)
  *
  * Usage (from the plugin root, as the site user; `php` because perms healing may have stripped the exec bit):
  *   php tools/release patch|minor|major|x.y.z [--push]

@@ -1,14 +1,17 @@
 #!/usr/bin/env php
 <?php
 /**
- * Kaupang suite pre-commit hook: one version, synced everywhere. (kit v2.2, docs/kit/)
+ * Kaupang suite pre-commit hook: one version, synced everywhere. (kit v2.4, docs/kit/)
  *
  * The plugin header `Version:` in <repo-folder>.php is the single source of truth. On every commit:
  *   1. syncs it into the *_VERSION constant, readme.txt `Stable tag:`, readme.meta.json `stableTag`,
  *      package.json `version` and any tracked block.json that has a `version` key;
  *   2. regenerates readme.txt from header + README.md + CHANGELOG.md (tools/generate-readme.php) — readme.txt is an artefact;
  *   3. refuses a version bump without a `## [x.y.z]` section in CHANGELOG.md (Keep a Changelog);
- *   4. runs tools/pre-commit-check if present, via the interpreter in its shebang (php/sh/bash), exec bit or not
+ *   4. refuses a new PHP file under tests/, tools/ or bin/ that runs code without `PHP_SAPI === 'cli' || exit;` as its
+ *      first statement (conventions.md, tests and tools); warns about a modified one. Files that only define things or
+ *      `return [...]` data are exempt. `php tools/pre-commit --cli-guards` checks every tracked file (exit 1 on any);
+ *   5. runs tools/pre-commit-check if present, via the interpreter in its shebang (php/sh/bash), exec bit or not
  *      (plugin-local checks, e.g. build --check — note: those see the working tree, not the index, so keep generated
  *      files staged together with their sources).
  *
@@ -33,8 +36,198 @@ function fail( string $msg ): void {
 	exit( 1 );
 }
 
+/**
+ * A PHP file under tests/, tools/ or bin/ must never answer a web request (conventions.md, tests and tools). Returns
+ * 'guarded' when its first statement (after declare/namespace/use) is a CLI or ABSPATH guard that exits, 'inert' when
+ * it only defines things or returns data (nothing runs when it's requested), else 'runs'. Judged on tokens, so a
+ * string that says "exit" is not an exit; anything it can't prove harmless is 'runs'.
+ */
+function cli_guard_state( string $src ): string {
+	$toks = array();
+	foreach ( token_get_all( $src ) as $n => $t ) {
+		$t = is_array( $t ) ? array( $t[0], $t[1] ) : array( null, $t );
+		if ( T_INLINE_HTML === $t[0] && ( ( 0 === $n && preg_match( '/^#![^\n]*\n?$/', $t[1] ) ) || '' === trim( $t[1] ) ) ) {
+			continue; // the shebang, or whitespace around the tags
+		}
+		if ( ! in_array( $t[0], array( T_OPEN_TAG, T_WHITESPACE, T_COMMENT, T_DOC_COMMENT ), true ) ) {
+			$toks[] = $t;
+		}
+	}
+	return cli_guard_tokens( $toks, true );
+}
+function cli_guard_k( string $name ): int {
+	return defined( $name ) ? constant( $name ) : -1; // tokens newer than the PHP running the hook
+}
+/** Top-level statements of a token list: each a list of [id, text]. */
+function cli_guard_split( array $toks ): array {
+	$block = array( T_FUNCTION, T_CLASS, T_INTERFACE, T_TRAIT, cli_guard_k( 'T_ENUM' ), T_ABSTRACT, T_FINAL, cli_guard_k( 'T_READONLY' ),
+		cli_guard_k( 'T_ATTRIBUTE' ), T_IF, T_ELSE, T_ELSEIF, T_FOREACH, T_FOR, T_WHILE, T_SWITCH, T_TRY, T_CATCH, cli_guard_k( 'T_FINALLY' ),
+		T_NAMESPACE, T_DECLARE );
+	$out   = array();
+	$cur   = array();
+	$depth = 0;
+	foreach ( $toks as $t ) {
+		if ( T_INLINE_HTML === $t[0] && 0 === $depth && ! $cur ) {
+			$out[] = array( $t );
+			continue;
+		}
+		$cur[] = $t;
+		if ( in_array( $t[1], array( '{', '(', '[', '${', '#[' ), true ) || T_CURLY_OPEN === $t[0] ) {
+			++$depth;
+		} elseif ( in_array( $t[1], array( '}', ')', ']' ), true ) ) {
+			--$depth;
+		}
+		if ( 0 === $depth && ( ';' === $t[1] || T_CLOSE_TAG === $t[0] || ( '}' === $t[1] && in_array( $cur[0][0], $block, true ) ) ) ) {
+			$out[] = $cur;
+			$cur   = array();
+		}
+	}
+	if ( $cur ) {
+		$out[] = $cur;
+	}
+	return $out;
+}
+/** Does this token list print, include, construct, call, or throw? Calls to $allowed functions don't count. */
+function cli_guard_executes( array $toks, array $allowed = array() ): bool {
+	$exec  = array( T_ECHO, T_PRINT, T_EXIT, T_EVAL, T_INCLUDE, T_INCLUDE_ONCE, T_REQUIRE, T_REQUIRE_ONCE, T_NEW, T_INLINE_HTML,
+		T_OPEN_TAG_WITH_ECHO, cli_guard_k( 'T_THROW' ) );
+	$named = array( T_STRING, T_VARIABLE, cli_guard_k( 'T_NAME_QUALIFIED' ), cli_guard_k( 'T_NAME_FULLY_QUALIFIED' ), cli_guard_k( 'T_NAME_RELATIVE' ) );
+	foreach ( $toks as $i => $t ) {
+		if ( in_array( $t[0], $exec, true ) || '`' === $t[1] ) {
+			return true;
+		}
+		if ( '(' !== $t[1] || 0 === $i ) {
+			continue;
+		}
+		$p = $toks[ $i - 1 ];
+		if ( in_array( $p[1], array( ')', ']', '}' ), true ) ) {
+			return true; // $f()(), $a[0](), {expr}()
+		}
+		if ( in_array( $p[0], $named, true ) && ! ( $i > 1 && in_array( $toks[ $i - 2 ][0], array( T_FUNCTION, cli_guard_k( 'T_FN' ) ), true ) )
+			&& ! in_array( strtolower( ltrim( $p[1], '\\' ) ), $allowed, true ) ) {
+			return true;
+		}
+	}
+	return false;
+}
+/** The tokens strictly inside the first {...} of a statement, or null when it has none at the end. */
+function cli_guard_body( array $stmt ): ?array {
+	foreach ( $stmt as $i => $t ) {
+		if ( '{' === $t[1] && '}' === end( $stmt )[1] ) {
+			return array_slice( $stmt, $i + 1, count( $stmt ) - $i - 2 );
+		}
+	}
+	return null;
+}
+function cli_guard_tokens( array $toks, bool $top ): string {
+	$stmts = cli_guard_split( $toks );
+	$i     = 0;
+	// Preamble: `use`, and the non-braced `declare(...);` / `namespace X;`. A braced one is judged by its body below.
+	while ( isset( $stmts[ $i ] ) && ( T_USE === $stmts[ $i ][0][0]
+		|| ( in_array( $stmts[ $i ][0][0], array( T_DECLARE, T_NAMESPACE ), true ) && ';' === end( $stmts[ $i ] )[1] ) ) ) {
+		++$i;
+	}
+	if ( $top && isset( $stmts[ $i ] ) ) {
+		$s = '';
+		foreach ( $stmts[ $i ] as $t ) {
+			if ( T_CONSTANT_ENCAPSED_STRING === $t[0] ) {
+				$v  = strtolower( substr( $t[1], 1, -1 ) );
+				$s .= in_array( $v, array( 'cli', 'abspath' ), true ) ? "'{$v}'" : "''";
+			} elseif ( T_EXIT === $t[0] ) {
+				$s .= 'exit';
+			} else {
+				$s .= strtolower( ltrim( $t[1], '\\' ) );
+			}
+		}
+		$sapi = '(php_sapi|php_sapi_name\(\))';
+		$exit = 'exit(\([^;{}]*\))?;';
+		if ( preg_match( "/^({$sapi}(===|==)'cli'|'cli'(===|==){$sapi})(\|\||or){$exit}$/", $s )
+			|| preg_match( "/^if\(({$sapi}(!==|!=)'cli'|'cli'(!==|!=){$sapi}|!\(?{$sapi}(===|==)'cli'\)?)\)(\{([^{}]*;)?{$exit}\}|{$exit})$/", $s )
+			|| preg_match( "/^defined\('abspath'\)(\|\||or){$exit}$/", $s )
+			|| preg_match( "/^if\(!defined\('abspath'\)\)(\{([^{}]*;)?({$exit}|return;)\}|{$exit}|return;)$/", $s ) ) {
+			return 'guarded';
+		}
+	}
+	$defs  = array( T_FUNCTION, T_CLASS, T_INTERFACE, T_TRAIT, cli_guard_k( 'T_ENUM' ), T_ABSTRACT, T_FINAL, cli_guard_k( 'T_READONLY' ),
+		cli_guard_k( 'T_ATTRIBUTE' ), T_CONST, T_USE );
+	$probe = array( 'function_exists', 'class_exists', 'interface_exists', 'trait_exists', 'enum_exists', 'defined', 'version_compare', 'extension_loaded' );
+	for ( ; isset( $stmts[ $i ] ); ++$i ) {
+		$st = $stmts[ $i ];
+		$id = $st[0][0];
+		if ( in_array( $id, $defs, true ) || ( in_array( $id, array( T_DECLARE, T_NAMESPACE ), true ) && ';' === end( $st )[1] ) ) {
+			continue;
+		}
+		if ( in_array( $id, array( T_DECLARE, T_NAMESPACE, T_ELSE ), true ) ) { // braced: judge the body
+			$body = cli_guard_body( $st );
+			if ( null === $body || ( T_DECLARE === $id && cli_guard_executes( array_slice( $st, 0, 1 + array_search( '{', array_column( $st, 1 ), true ) ) ) ) || 'inert' !== cli_guard_tokens( $body, false ) ) {
+				return 'runs';
+			}
+			continue;
+		}
+		if ( in_array( $id, array( T_IF, T_ELSEIF ), true ) ) { // a conditional definition: probe-only condition, inert body
+			$body = cli_guard_body( $st );
+			$cond = null === $body ? $st : array_slice( $st, 0, count( $st ) - count( $body ) - 1 );
+			if ( null === $body || cli_guard_executes( $cond, $probe ) || 'inert' !== cli_guard_tokens( $body, false ) ) {
+				return 'runs';
+			}
+			continue;
+		}
+		if ( in_array( $id, array( T_RETURN, T_VARIABLE ), true ) && ! cli_guard_executes( $st ) ) {
+			if ( T_RETURN === $id ) {
+				return 'inert'; // a data file: `return [...]`, after nothing but definitions and data assignments
+			}
+			continue;
+		}
+		return 'runs';
+	}
+	return 'inert';
+}
+function cli_guard_path( string $file ): bool {
+	return (bool) preg_match( '#(^|/)(tests|tools|bin)/#', $file ) && str_ends_with( $file, '.php' )
+		&& ! preg_match( '#(^|/)(vendor|node_modules)/#', $file );
+}
+/** NUL-separated git output as a list (paths raw, never quoted). */
+function git_z( string $args ): array {
+	return array_values( array_filter( explode( "\0", (string) shell_exec( 'git ' . $args . ' -z 2>/dev/null' ) ), 'strlen' ) );
+}
+const CLI_GUARD_FIX = "Make its first statement (after the docblock and any declare/namespace/use lines):\n" .
+	"    PHP_SAPI === 'cli' || exit;\n" .
+	"A test or tool file must never answer a web request; some sites' nginx serves plugin PHP (conventions.md, tests and tools).\n" .
+	"Files that only define functions/classes or `return [...]` data need nothing.";
+
 $root = git( 'rev-parse --show-toplevel' );
 chdir( $root );
+
+// `php tools/pre-commit --cli-guards`: every tracked file, for a repo's gate or a sweep. Exits 1 if one runs unguarded.
+if ( in_array( '--cli-guards', $argv ?? array(), true ) ) {
+	$bad = array_filter( git_z( 'ls-files' ), fn( $f ) => cli_guard_path( $f ) && is_file( $f ) && 'runs' === cli_guard_state( (string) file_get_contents( $f ) ) );
+	foreach ( $bad as $f ) {
+		echo "unguarded {$f}\n";
+	}
+	echo $bad ? count( $bad ) . " file(s) run code without the CLI guard.\n" . CLI_GUARD_FIX . "\n" : "cli-guards: ok\n";
+	exit( $bad ? 1 : 0 );
+}
+
+// A new tests/|tools/|bin/ PHP file that runs code must open with the CLI guard: refused. A file that was already there
+// is only warned about, so a repo's older files never block a commit that didn't add them (`--cli-guards` lists them all).
+// Checked before anything else, so it holds in a checkout whose main file isn't found.
+$z       = git_z( 'diff --cached --name-status --no-renames --diff-filter=ACM' ); // status, path, status, path, …
+$new_bad = array();
+for ( $n = 0; $n + 1 < count( $z ); $n += 2 ) {
+	list( $st, $file ) = array( $z[ $n ], $z[ $n + 1 ] );
+	if ( ! cli_guard_path( $file ) || 'runs' !== cli_guard_state( (string) staged( $file ) ) ) {
+		continue;
+	}
+	if ( 'M' === $st ) {
+		fwrite( STDERR, "pre-commit: warning — {$file} runs code without `PHP_SAPI === 'cli' || exit;` at the top (conventions.md, tests and tools).\n" );
+	} else {
+		$new_bad[] = $file;
+	}
+}
+if ( $new_bad ) {
+	fail( 'new file(s) run code without the CLI guard: ' . implode( ', ', $new_bad ) . ".\n" . CLI_GUARD_FIX );
+}
+
 $main = git( 'config kit.main' ) ?: basename( $root ) . '.php'; // override for clones/worktrees not named after the plugin
 
 if ( ! is_file( $main ) ) {

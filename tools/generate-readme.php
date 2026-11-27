@@ -1,7 +1,7 @@
 #!/usr/bin/env php
 <?php
 /**
- * Kaupang suite readme.txt generator. (kit v2.2, docs/kit/)
+ * Kaupang suite readme.txt generator. (kit v2.4, docs/kit/)
  *
  * readme.txt is a build artefact: never edit it. Every fact has one source —
  *   plugin header (<folder>.php) : name, version (Stable tag), Requires at least, Requires PHP, License, Description
@@ -14,6 +14,8 @@
  * Usage: php tools/generate-readme.php [--index]   (--index reads staged content; the pre-commit hook uses it)
  * Exits 1 on missing required facts; prints warnings for wordpress.org limits.
  */
+
+PHP_SAPI === 'cli' || exit; // a tool, never a web page (conventions.md: tests and tools)
 
 $root  = dirname( __DIR__ );
 $index = in_array( '--index', $argv, true );
